@@ -36,10 +36,11 @@ return [
 
         'database' => [
             'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => 'jobs',
             'queue' => 'default',
             'retry_after' => 90,
-            'after_commit' => false,
+            'after_commit' => true,
         ],
 
         'beanstalkd' => [
@@ -83,6 +84,11 @@ return [
     | have failed. You may change them to any database / table you wish.
     |
     */
+
+    'batching' => [
+        'database' => env('DB_CONNECTION', 'mysql'),
+        'table' => 'job_batches',
+    ],
 
     'failed' => [
         'driver' => env('QUEUE_FAILED_DRIVER', 'database-uuids'),

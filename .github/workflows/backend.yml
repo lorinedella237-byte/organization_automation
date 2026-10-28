@@ -1,0 +1,36 @@
+name: Backend checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, fileinfo, pdo_mysql, pdo_sqlite
+          coverage: none
+          tools: composer:v2
+      - name: Reject committed local environment files and backups
+        shell: bash
+        run: |
+          forbidden=$(git ls-files -- '.env' '.env.*' 'storage/app/backups/**' | grep -v '^.env.example$' || true)
+          if [ -n "$forbidden" ]; then
+            printf 'Local environment files or backups must not be committed:\n%s\n' "$forbidden"
+            exit 1
+          fi
+      - run: composer validate --strict
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: composer check-platform-reqs
+      - run: composer lint
+      - run: composer test
