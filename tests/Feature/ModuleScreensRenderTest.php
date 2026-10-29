@@ -9,6 +9,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\WorkspaceProvisioner;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -257,6 +258,46 @@ class ModuleScreensRenderTest extends TestCase
             ->get('/workspace/documents')
             ->assertOk()
             ->assertSee('Salary review.pdf');
+    }
+
+    public function test_download_requires_clean_file_and_download_permission(): void
+    {
+        Storage::fake('private');
+        $document = $this->document('Policy.pdf', $this->owner);
+        Storage::disk('private')->put($document->versions->sole()->storage_key, 'private file contents');
+
+        DB::table('document_shares')->insert([
+            'organization_id' => $this->organization->id, 'document_id' => $document->id,
+            'membership_id' => $this->member->id, 'department_id' => null, 'team_id' => null,
+            'permission' => 'view', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $this->actingFreshly($this->member)
+            ->get('/workspace/documents/'.$document->id.'/download')
+            ->assertForbidden();
+
+        DB::table('document_shares')->where('document_id', $document->id)->update(['permission' => 'download']);
+
+        $this->actingFreshly($this->member)
+            ->get('/workspace/documents/'.$document->id.'/download')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf');
+    }
+
+    public function test_download_rejects_a_pending_or_missing_file(): void
+    {
+        Storage::fake('private');
+        $document = $this->document('Pending.pdf', $this->owner);
+        $document->update(['status' => 'quarantined']);
+
+        $this->actingFreshly($this->owner)
+            ->get('/workspace/documents/'.$document->id.'/download')
+            ->assertNotFound();
+
+        $document->update(['status' => 'available']);
+        $this->actingFreshly($this->owner)
+            ->get('/workspace/documents/'.$document->id.'/download')
+            ->assertNotFound();
     }
 
     private function document(string $name, OrganizationMembership $uploader): Document

@@ -75,6 +75,31 @@ class DocumentService
         });
     }
 
+    public function authorizeDownload(OrganizationMembership $actor, Document $document): DocumentVersion
+    {
+        abort_unless($document->organization_id === $actor->organization_id && $document->status === 'available' && is_null($document->trashed_at), 404);
+        $scopes = $this->access->scopes($actor, 'documents.view');
+        // A visible file is not automatically downloadable. View-only shares
+        // must be able to appear in the library without granting the bytes.
+        $sharedForDownload = DocumentShare::where('organization_id', $actor->organization_id)
+            ->where('document_id', $document->id)
+            ->where('permission', 'download')
+            ->where(function ($q) use ($actor) {
+                $q->where('membership_id', $actor->id);
+                if ($actor->department_id) $q->orWhere('department_id', $actor->department_id);
+                if ($actor->team_id) $q->orWhere('team_id', $actor->team_id);
+                $q->orWhere(function ($q) { $q->whereNull('membership_id')->whereNull('department_id')->whereNull('team_id'); });
+            })->exists();
+        $allowed = in_array('organization', $scopes, true)
+            || (in_array('own', $scopes, true) && $document->uploaded_by_membership_id === $actor->id)
+            || $sharedForDownload;
+        abort_unless($allowed, 403);
+        $version = $document->versions()->where('scan_status', 'clean')->latest('version')->firstOrFail();
+        abort_unless(Storage::disk('private')->exists($version->storage_key), 404);
+        $this->audit->record($actor->organization_id, $actor, 'document.downloaded', 'document', $document->id, ['version' => $version->version]);
+        return $version;
+    }
+
     public function authorizeRead(OrganizationMembership $actor,Document $document):DocumentVersion { abort_unless($document->organization_id===$actor->organization_id && $document->status==='available' && is_null($document->trashed_at),404); $scopes=$this->access->scopes($actor,'documents.view'); // Claude, 2026-10-29: the department and team clauses were unguarded,
         // so for a member belonging to neither they became `department_id is
         // null` and `team_id is null`, which match every share aimed at a
