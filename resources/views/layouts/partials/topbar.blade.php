@@ -103,7 +103,7 @@
                         data-bs-toggle="dropdown"
                         aria-expanded="false">
                     <span class="d-none d-sm-inline small fw-medium text-truncate" style="max-width: 10rem">
-                        {{ $user->full_name ?? $user->email }}
+                        {{ $user->name }}
                     </span>
                     <i class="bi bi-person-circle fs-5" aria-hidden="true"></i>
                     <span class="visually-hidden">{{ __('Account menu') }}</span>

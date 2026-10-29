@@ -26,12 +26,7 @@
 
     <link rel="icon" href="{{ asset('favicon.ico') }}">
 
-    {{-- Inter sets the interface and display text; IBM Plex Mono sets anything
-         that is data: reference numbers, statuses, dates and column heads. --}}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap">
+    @include('layouts.partials.fonts')
 
     @vite(['resources/css/app.scss', 'resources/js/app.js'])
 </head>

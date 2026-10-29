@@ -21,6 +21,8 @@
 
     <link rel="icon" href="{{ asset('favicon.ico') }}">
 
+    @include('layouts.partials.fonts')
+
     @vite(['resources/css/app.scss', 'resources/js/app.js'])
 </head>
 <body>

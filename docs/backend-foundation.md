@@ -2,7 +2,7 @@
 
 Owner: Codex. Frontend owner: Claude. Related tasks: P0.01, P0.02, P0.04, P0.05, P0.07.
 
-## Current status — 28 October 2026
+## Current status, 28 October 2026
 
 The database connectivity blocker below is resolved. All 10 previous migrations had been applied by the user; after a fresh verified SQL backup, Codex applied the two additional identity/audit and queue migrations. User model/factory alignment, password hashing, UUID uniqueness, missing legacy rollback methods, private storage and local database-queue/log-mail configuration are implemented. Tests cover full migration rollback/reapply and legacy-data preservation.
 

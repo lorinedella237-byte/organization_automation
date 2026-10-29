@@ -61,7 +61,7 @@
             name="password"
             type="password"
             :label="__('Create a password')"
-            :help="__('Use at least 8 characters. A longer passphrase is stronger than a short, complex one.')"
+            :help="__('Use at least 12 characters. A longer passphrase is stronger than a short, complex one.')"
             autocomplete="new-password"
             required />
 

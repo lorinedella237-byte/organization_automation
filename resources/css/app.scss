@@ -295,13 +295,20 @@ body {
         padding: 0.625rem 0.75rem;
     }
 
-    th {
+    // Column heads only. A row header is content, often a name or a literal
+    // identifier such as an ability code, and must not be recased.
+    thead th {
         color: var(--bs-secondary-color);
         font-size: 0.75rem;
         font-weight: 600;
         letter-spacing: 0.03em;
         text-transform: uppercase;
         white-space: nowrap;
+    }
+
+    tbody th {
+        font-weight: 600;
+        text-transform: none;
     }
 }
 

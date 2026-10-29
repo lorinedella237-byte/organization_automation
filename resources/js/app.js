@@ -2,6 +2,7 @@ import './bootstrap';
 import './theme';
 import './sidebar';
 import './reveal';
+import './role-matrix';
 
 import * as bootstrap from 'bootstrap';
 import Alpine from 'alpinejs';

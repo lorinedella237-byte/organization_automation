@@ -42,6 +42,6 @@ class AdminSeeder extends Seeder
         $user->save();
 
         // Organization membership and admin authorization belong to Phase 1.
-        $this->command?->info('Demo identity created. Login and admin role integration are pending Phase 1.');
+        $this->command?->info('Demo identity created. Sign in at /login. Organization admin permissions are pending Phase 1.');
     }
 }

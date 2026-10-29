@@ -51,7 +51,7 @@ class AdminSeederTest extends TestCase
     public function test_regular_production_seeding_does_not_create_a_demo_account(): void
     {
         $this->app->instance('env', 'production');
-        $this->seed(DatabaseSeeder::class);
+        $this->artisan('db:seed', ['--class' => DatabaseSeeder::class, '--force' => true])->assertExitCode(0);
         $this->assertSame(0, User::count());
     }
 
@@ -61,7 +61,7 @@ class AdminSeederTest extends TestCase
         foreach ([null, 'short', 'DemoAdmin!2026'] as $password) {
             config(['demo.admin_password' => $password]);
             try {
-                $this->seed(AdminSeeder::class);
+                $this->app->make(AdminSeeder::class)->run();
                 $this->fail('Expected unsafe password to be rejected.');
             } catch (InvalidArgumentException $exception) {
                 $this->assertStringContainsString('DEMO_ADMIN_PASSWORD', $exception->getMessage());
@@ -74,7 +74,7 @@ class AdminSeederTest extends TestCase
     {
         $this->app->instance('env', 'production');
         config(['demo.admin_email' => ' Demo@Example.test ', 'demo.admin_password' => 'PrivateDemoPassword!']);
-        $this->seed(AdminSeeder::class);
+        $this->artisan('db:seed', ['--class' => AdminSeeder::class, '--force' => true])->assertExitCode(0);
 
         $user = User::sole();
         $this->assertSame('demo@example.test', $user->email);

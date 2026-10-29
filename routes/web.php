@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -13,16 +16,48 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', fn () => view('landing'))->name('landing');
+Route::get('/', fn () => auth()->check() ? redirect()->route('dashboard') : view('landing'))->name('landing');
 
-Route::get('/home', function(){
-    return "welcome simon";
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
+    Route::post('/login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:login');
+
+    // Password reset. Added by Claude on 2026-10-28 while Codex was unavailable;
+    // see the cross-lane claim in claude_codex.md under P1.03. The broker applies
+    // its own per-address interval; these IP limits sit on top of it.
+    Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+    Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->middleware('throttle:6,1')->name('password.email');
+    Route::get('/reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+    Route::post('/reset-password', [NewPasswordController::class, 'store'])->middleware('throttle:6,1')->name('password.store');
+});
+
+Route::middleware('auth')->group(function () {
+    Route::view('/home', 'dashboard')->middleware('workspace:0')->name('dashboard');
+    Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
+    Route::post('/workspace/switch', [\App\Http\Controllers\WorkspaceController::class, 'switch'])->name('workspace.switch');
+});
+
+Route::prefix('workspace')->middleware(['auth', 'workspace'])->group(function () {
+    Route::get('settings', [\App\Http\Controllers\WorkspaceController::class, 'show'])->name('settings.organization');
+    Route::patch('settings', [\App\Http\Controllers\WorkspaceController::class, 'update'])->name('settings.organization.update');
+    Route::get('staff', [\App\Http\Controllers\StaffController::class, 'index'])->name('staff.index');
+    Route::get('staff/{membership}', [\App\Http\Controllers\StaffController::class, 'show'])->whereNumber('membership')->name('staff.show');
+    Route::patch('staff/{membership}', [\App\Http\Controllers\StaffController::class, 'update'])->whereNumber('membership')->name('staff.update');
+    Route::post('staff/{membership}/status', [\App\Http\Controllers\StaffController::class, 'status'])->whereNumber('membership')->name('staff.status');
+    Route::put('staff/{membership}/roles', [\App\Http\Controllers\StaffController::class, 'roles'])->whereNumber('membership')->name('staff.roles');
+    Route::get('roles', [\App\Http\Controllers\RoleController::class, 'index'])->name('roles.index');
+    Route::post('roles', [\App\Http\Controllers\RoleController::class, 'save'])->name('roles.store');
+    Route::put('roles/{role}', [\App\Http\Controllers\RoleController::class, 'save'])->whereNumber('role')->name('roles.update');
+    foreach (['departments', 'teams'] as $kind) {
+        Route::get($kind, [\App\Http\Controllers\OrganizationStructureController::class, 'handle'])->defaults('kind', $kind)->name($kind.'.index');
+        Route::post($kind, [\App\Http\Controllers\OrganizationStructureController::class, 'handle'])->defaults('kind', $kind)->name($kind.'.store');
     }
-);
+    Route::get('audit', [\App\Http\Controllers\AuditController::class, 'index'])->name('audit.index');
+});
 
 /*
 |--------------------------------------------------------------------------
-| P0.05 shell verification fixture — Claude, 2026-10-26
+| P0.05 shell verification fixture. Claude, 2026-10-26
 |--------------------------------------------------------------------------
 |
 | Local-only route so the shared Blade shell and component kit can be reviewed
@@ -51,7 +86,7 @@ if (app()->isLocal()) {
 
         Route::get('auth/accept-invitation', fn () => view('auth.accept-invitation', [
             'token' => 'sample-invitation-token',
-            // Sample shape only — the real object arrives with the P1.03 contract.
+            // Sample shape only. The real object arrives with the P1.03 contract.
             'invitation' => (object) [
                 'organization_name' => 'Lorine Pilot Organization',
                 'role_name' => 'Staff',

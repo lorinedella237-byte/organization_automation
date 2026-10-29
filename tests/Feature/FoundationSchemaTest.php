@@ -47,6 +47,11 @@ class FoundationSchemaTest extends TestCase
 
     public function test_alignment_preserves_legacy_identity_permission_and_audit_records(): void
     {
+        // Undo dependent later migrations first; this test exercises the original upgrade boundary.
+        $later = DB::table('migrations')->where('migration', '>', '2026_10_26_000002_align_identity_and_audit_schema')->count();
+        if ($later) {
+            $this->artisan('migrate:rollback', ['--step' => $later, '--force' => true])->assertExitCode(0);
+        }
         $migration = require database_path('migrations/2026_10_26_000002_align_identity_and_audit_schema.php');
         $migration->down();
         DB::table('users')->insert([

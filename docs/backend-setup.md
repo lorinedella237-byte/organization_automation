@@ -16,7 +16,7 @@ Use PHP 8.2+, Composer 2 and a configured MySQL-compatible database. PHP needs t
 8. For the UI, use Claude's frontend setup/build instructions. The current frontend scripts support `npm ci` and `npm run build`; backend tests deliberately do not require Vite or built assets.
 9. Run `php artisan serve`. For background jobs, run `php artisan queue:work database --tries=3 --timeout=60` in a separate terminal. The queue's retry interval is 90 seconds. Stop and restart workers after code changes.
 
-Local defaults are `APP_NAME=LORINE`, `FILESYSTEM_DISK=private`, `QUEUE_CONNECTION=database` and `MAIL_MAILER=log`. Email is written to the application log, not sent externally. No worker or production daemon is installed by these changes.
+Local defaults are `APP_NAME=Meridian`, `FILESYSTEM_DISK=private`, `QUEUE_CONNECTION=database` and `MAIL_MAILER=log`. Email is written to the application log, not sent externally. No worker or production daemon is installed by these changes.
 
 ## Current foundation behavior
 
@@ -34,7 +34,36 @@ The seeder creates a verified user with a generated UUID and hashed password. Re
 
 Override the credentials with `DEMO_ADMIN_EMAIL` and `DEMO_ADMIN_PASSWORD` in `.env` before the first seed. If configuration is cached, rebuild it after changing those values. On hosted installations outside local/testing, ordinary `db:seed` skips this account; explicitly run `php artisan db:seed --class=AdminSeeder --force` with a private `DEMO_ADMIN_PASSWORD` of at least 12 characters. The published local password is rejected there.
 
-**Current limitation:** this seeds the intended demo administrator's identity only. Login endpoints, organization memberships and administrator authorization remain pending Phase 1. The preview login form cannot authenticate yet; the seeder does not grant a global authorization bypass. Once membership/RBAC exists, extend this seeder to provision the demo organization and its scoped administrator role.
+Open `/login` on your application server (normally `http://127.0.0.1:8000/login` with `php artisan serve`) and sign in with these credentials. Successful login opens the protected account home at `/home`. Use **Sign out** to end the session. The local `/dev/auth/login` preview also submits to the real `/login` endpoint.
+
+Login renews the session ID and CSRF token. Logout is POST-only and invalidates the session and remember-me cookie. Five failed attempts for one email/IP pair cause a 60-second lockout; an additional IP limit permits at most 30 login submissions per minute. Invalid credentials use the same error for unknown emails and wrong passwords. Passwords are never flashed back into the form. This follows Laravel's [session authentication guidance](https://laravel.com/docs/12.x/authentication).
+
+**Current limitation:** organization memberships and administrator authorization remain pending Phase 1. The account home confirms identity only; it does not expose organization data or grant a global authorization bypass. Once membership/RBAC exists, extend this seeder to provision the demo organization and its scoped administrator role. Invitations, password reset, email-verification delivery/enforcement and membership suspension are still pending.
+
+### Password reset
+
+Added by Claude on 28 October 2026 while Codex was unavailable. See the cross-lane claim in `claude_codex.md` under P1.03.
+
+Routes, all guest-only:
+
+- GET `/forgot-password`, named `password.request`.
+- POST `/forgot-password`, named `password.email`. Rate limited to 6 requests per minute per IP, on top of the broker's own per-address interval in `config/auth.php` (`passwords.users.throttle`, currently 60 seconds).
+- GET `/reset-password/{token}`, named `password.reset`. The address travels in the query string so the field can be shown read-only.
+- POST `/reset-password`, named `password.store`. Same IP limit.
+
+Behaviour worth knowing:
+
+- **The request form never reveals whether an address is known.** Unknown, known and throttled addresses all produce the same redirect and the same flash message. Accounts here exist by invitation, so confirming an address would confirm that a person works for the organization. The broker's return value is deliberately discarded.
+- **Tokens are single use and expire after one hour** (`passwords.users.expire`). A token issued for one address cannot reset another, because the broker matches the token against the hashed record stored for that exact address.
+- **Resetting rotates `remember_token`**, which signs out every remember-me session on other devices. Someone resetting a password may be doing it because they lost control of the account.
+- **A successful reset does not sign the visitor in.** They are redirected to `/login` with a status message and must enter the new password. A reset link read by somebody else therefore does not hand over a live session.
+- **The minimum length is 12 characters**, matching what this document already requires of a hosted demo administrator password. Length is the only composition rule. The two Blade hints state the same number.
+
+Email goes wherever `MAIL_MAILER` points. Locally that is `log`, so the reset link appears in `storage/logs/laravel.log` rather than being delivered; search the log for `reset-password/`.
+
+Tests: `tests/Feature/PasswordResetTest.php`, 11 cases covering delivery, the no-enumeration guarantee, token reuse, cross-address token use, expiry handling, length and confirmation rules, address normalisation, and the guest-only constraint.
+
+Still pending for P1.03: invitation acceptance with expiry and replay protection, email-verification delivery and enforcement, and membership suspension checks.
 
 ### Schema and infrastructure
 
@@ -64,4 +93,4 @@ Before the 28 October changes, the configured database had 10 applied migrations
 
 `.github/workflows/backend.yml` runs Composer validation/install/platform checks, PHP lint and the backend tests on PHP 8.2. It rejects committed local environment files and backup paths; that guard is not a comprehensive secret scanner. References: [checkout action](https://github.com/actions/checkout), [PHP setup action](https://github.com/shivammathur/setup-php). The workflow is authored and parsed locally; a hosted run has not been triggered from this session.
 
-Real login, invitation, suspension, tenant-isolation and permission tests will be added with Phase 1. Frontend builds/browser checks remain Claude's responsibility.
+Session login/logout tests now cover seeded credentials, protected routes, session/token renewal, remember-me, generic failure messages, validation, per-account/IP rate limits and enforced CSRF. A local HTTP cookie/form smoke check also passed against the configured MariaDB account. Invitation, suspension, tenant-isolation and permission tests remain Phase 1 work. Visual frontend/browser checks remain Claude's responsibility.

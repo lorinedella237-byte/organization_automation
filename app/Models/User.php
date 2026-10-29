@@ -49,6 +49,11 @@ class User extends Authenticatable implements MustVerifyEmail
 
     protected $appends = ['name'];
 
+    public function memberships(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(OrganizationMembership::class);
+    }
+
     protected static function booted(): void
     {
         static::creating(function (self $user) {

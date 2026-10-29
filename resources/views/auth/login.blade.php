@@ -10,7 +10,7 @@
 @section('subtitle', __('Sign in to continue'))
 
 @section('content')
-    <form method="POST" action="{{ Route::has('login') ? route('login') : '' }}" novalidate>
+    <form method="POST" action="{{ route('login') }}" novalidate>
         @csrf
 
         <x-input
@@ -30,7 +30,7 @@
 
         <div class="d-flex align-items-center justify-content-between mb-3">
             <div class="form-check mb-0">
-                <input class="form-check-input" type="checkbox" name="remember" id="remember"
+                <input class="form-check-input" type="checkbox" name="remember" id="remember" value="1"
                        @checked(old('remember'))>
                 <label class="form-check-label" for="remember">{{ __('Remember me') }}</label>
             </div>

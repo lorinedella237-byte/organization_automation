@@ -25,6 +25,24 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
 
-        //
+        foreach (config('permissions.abilities') as $ability => $scopes) {
+            Gate::define($ability, function ($user) use ($ability) {
+                $membership = request()->attributes->get('currentMembership');
+
+                return $membership && $membership->user_id === $user->id
+                    && app(\App\Services\WorkspaceAccess::class)->scopes($membership, $ability) !== [];
+            });
+            foreach ($scopes as $scope) {
+                Gate::define($ability.'.'.$scope, function ($user) use ($ability, $scope) {
+                    $membership = request()->attributes->get('currentMembership');
+                    if (! $membership || $membership->user_id !== $user->id) {
+                        return false;
+                    }
+                    $held = app(\App\Services\WorkspaceAccess::class)->scopes($membership, $ability);
+
+                    return in_array($scope, $held, true) || in_array('organization', $held, true);
+                });
+            }
+        }
     }
 }

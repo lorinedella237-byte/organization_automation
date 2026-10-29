@@ -10,7 +10,7 @@ class FrameworkUpgradeTest extends TestCase
     {
         $this->assertStringStartsWith('12.', app()->version());
         $this->withoutVite()->get('/')->assertOk()->assertViewIs('landing');
-        $this->get('/home')->assertOk()->assertSee('welcome simon');
+        $this->get('/home')->assertRedirect('/login');
     }
 
     public function test_sanctum_protected_route_rejects_anonymous_json_requests(): void
