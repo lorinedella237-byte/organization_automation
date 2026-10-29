@@ -33,7 +33,7 @@ class ProjectController extends Controller
 
     public function show(Request $request, int $project)
     {
-        $project = $this->projects->visibleProjects($this->actor($request))->with(['tasks.assignee.user', 'milestones'])->findOrFail($project);
+        $project = $this->projects->visibleProjects($this->actor($request))->with(['tasks.assignee.user', 'milestones', 'history.actor.user'])->findOrFail($project);
         return $request->expectsJson() ? response()->json(['data' => $project]) : view('workspace.projects.show', compact('project'));
     }
 

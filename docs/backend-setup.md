@@ -99,6 +99,8 @@ The scheduled command runs daily at 02:45 when Laravel's scheduler is active. A 
 
 After migrations `2026_10_29_000007_add_two_factor_authentication.php` and `2026_10_29_000008_create_compensation_adjustments.php`, an authenticated user can create a TOTP secret with `POST /security/2fa/begin` and confirm the six-digit authenticator code with `POST /security/2fa/confirm`. The secret is encrypted at rest and never returned after confirmation. In production, workspace routes require a confirmed factor for users holding organization, role or payroll administration grants. Configure the application key before enabling this flow; losing it makes encrypted secrets unrecoverable and requires an account recovery procedure.
 
+Project lifecycle history is added by `2026_10_29_000009_create_project_history.php`. It records project creation, updates, status changes, and membership assignments with tenant, actor, before, and after values.
+
 All schema changes are migrations. Only missing rollback methods were repaired in the five original custom migrations; their `up()` definitions are unchanged.
 
 The identity alignment migration changes phone/legacy employee number to nullable, adds UUID uniqueness, adds the audit timestamp and renames the permission table. Its rollback refuses to run if new identities have null legacy required fields. Do not invent employee numbers or phone numbers to force a rollback; reconcile explicitly or restore a verified backup into a separate database.

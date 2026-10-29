@@ -118,6 +118,20 @@ class DashboardScreenRenderTest extends TestCase
             ->assertDontSee('Active staff');
     }
 
+    public function test_the_clock_card_points_at_the_screen_that_owns_the_clock(): void
+    {
+        $this->actingAs($this->owner->user)
+            ->get('/home')
+            ->assertOk()
+            ->assertSee('You right now')
+            // The card reports the state and hands the action to the screen
+            // that owns it, rather than running a second clock of its own.
+            ->assertSee(route('attendance.index'), false)
+            ->assertSee('Open attendance')
+            // This said the attendance screen was not built, long after it was.
+            ->assertDontSee('not built yet');
+    }
+
     public function test_an_owner_is_told_all_of_it(): void
     {
         $this->actingAs($this->owner->user)

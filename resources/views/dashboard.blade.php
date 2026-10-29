@@ -10,8 +10,9 @@
     is sitting on. Both are recorded as backend scoping work in the tracker.
 
     These are counts, not series: there is no history behind any of them, so the
-    right form is a stat tile and not a chart. A tile links to its list only
-    where that list has a screen; the rest would lead to a page of raw JSON.
+    right form is a stat tile and not a chart. The tiles do not link anywhere:
+    a figure and its list are not the same thing, and the sidebar is one click
+    away from every list on this page.
 --}}
 @extends('layouts.app')
 
@@ -136,9 +137,20 @@
                             @endif
                         </p>
 
-                        <p class="text-secondary small mb-0">
-                            {{ __('Clocking in and out needs the attendance screen, which is not built yet.') }}
+                        {{-- The clock itself lives on the attendance screen, which
+                             owns the rules about what may follow an open session.
+                             This card reports the state and says where to change
+                             it, rather than running a second control that would
+                             have to stay in step with that one. --}}
+                        <p class="text-secondary small mb-3">
+                            {{ __('Clocking in and out, and asking for a correction, happen on the attendance screen.') }}
                         </p>
+
+                        @can('attendance.view.own')
+                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('attendance.index') }}">
+                                {{ __('Open attendance') }}
+                            </a>
+                        @endcan
                     </div>
                 </div>
             </div>
@@ -148,9 +160,10 @@
                     <div class="card-body">
                         <h2 class="h6 mb-3">{{ __('Go to') }}</h2>
 
-                        {{-- Only destinations that have a screen are offered. The
-                             other modules answer with JSON today, and a link that
-                             hands someone raw JSON is worse than no link. --}}
+                        {{-- A short list, not every module. The sidebar already
+                             holds the full set; this is the handful of places
+                             people go first from home, and a shortcut to all
+                             sixteen would be the sidebar again in a card. --}}
                         <ul class="list-unstyled mb-0 d-flex flex-wrap gap-2">
                             @can('projects.view')
                                 <li>

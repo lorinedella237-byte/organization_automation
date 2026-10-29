@@ -50,6 +50,33 @@ class BackendModuleWorkflowTest extends TestCase
         $this->assertDatabaseHas('task_history', ['task_id' => $task->id, 'event' => 'created']);
     }
 
+    public function test_project_lifecycle_transitions_are_validated_and_history_is_retained(): void
+    {
+        $project = app(ProjectService::class)->create($this->owner, ['name' => 'Lifecycle']);
+
+        app(ProjectService::class)->update($this->owner, $project, ['status' => 'active']);
+        app(ProjectService::class)->update($this->owner, $project->fresh(), ['status' => 'completed']);
+
+        $this->assertSame(3, $project->history()->count());
+        $this->assertDatabaseHas('project_history', ['project_id' => $project->id, 'event' => 'status_changed']);
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(ProjectService::class)->update($this->owner, $project->fresh(), ['status' => 'active']);
+    }
+
+    public function test_project_lead_is_added_to_membership_roster(): void
+    {
+        $lead = OrganizationMembership::create([
+            'organization_id' => $this->owner->organization_id,
+            'user_id' => User::factory()->create()->id,
+            'status' => 'active',
+        ]);
+        $project = app(ProjectService::class)->create($this->owner, ['name' => 'Led project', 'lead_membership_id' => $lead->id]);
+
+        $this->assertTrue($project->members()->whereKey($lead->id)->exists());
+        $this->assertDatabaseHas('project_history', ['project_id' => $project->id, 'event' => 'created']);
+    }
+
     public function test_attendance_prevents_two_open_sessions_and_produces_summary(): void
     {
         $service = app(AttendanceService::class);

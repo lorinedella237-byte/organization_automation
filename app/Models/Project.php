@@ -17,4 +17,5 @@ class Project extends \Illuminate\Database\Eloquent\Model
     public function members(): BelongsToMany { return $this->belongsToMany(OrganizationMembership::class, 'project_members', 'project_id', 'membership_id')->withPivot('role')->withTimestamps(); }
     public function milestones(): HasMany { return $this->hasMany(Milestone::class); }
     public function tasks(): HasMany { return $this->hasMany(Task::class); }
+    public function history(): HasMany { return $this->hasMany(ProjectHistory::class)->latest('created_at'); }
 }

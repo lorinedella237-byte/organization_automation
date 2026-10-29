@@ -107,7 +107,7 @@ php artisan migrate --no-interaction
 
 Never use `php artisan migrate:fresh` on a database that contains data you need to keep.
 
-The current workspace modules are added by migrations `2026_10_29_000003` through `2026_10_29_000008`. If a migration stopped part way through and `php artisan migrate:status` still shows it as **Pending**, inspect the database before retrying. A failed MySQL DDL migration can leave some of its tables behind. On a disposable development database, the simplest recovery is:
+The current workspace modules are added by migrations `2026_10_29_000003` through `2026_10_29_000009`. If a migration stopped part way through and `php artisan migrate:status` still shows it as **Pending**, inspect the database before retrying. A failed MySQL DDL migration can leave some of its tables behind. On a disposable development database, the simplest recovery is:
 
 ```bash
 php artisan migrate:fresh

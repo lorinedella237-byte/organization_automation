@@ -39,7 +39,7 @@
         __('Work') => [
             ['label' => __('My Tasks'), 'route' => 'tasks.my', 'icon' => 'check2-square', 'can' => 'tasks.view.own'],
             ['label' => __('Projects'), 'route' => 'projects.index', 'icon' => 'kanban', 'can' => 'projects.view'],
-            ['label' => __('Daily Activities'), 'route' => 'activities.index', 'icon' => 'journal', 'can' => 'activities.view.own'],
+            ['label' => __('Daily Activities'), 'route' => 'activities.index', 'icon' => 'journal-text', 'can' => 'activities.view.own'],
             ['label' => __('Work Logs'), 'route' => 'work-logs.index', 'icon' => 'stopwatch', 'can' => 'activities.create'],
             ['label' => __('Reports'), 'route' => 'reports.index', 'icon' => 'file-earmark-text', 'can' => 'reports.view.own'],
         ],
@@ -52,7 +52,7 @@
         __('Time and pay') => [
             ['label' => __('Attendance'), 'route' => 'attendance.index', 'icon' => 'clock', 'can' => 'attendance.view.own'],
             ['label' => __('Leave'), 'route' => 'leave.index', 'icon' => 'calendar-event', 'can' => 'leave.view.own'],
-            ['label' => __('Payroll'), 'route' => 'payroll.index', 'icon' => 'receipt', 'can' => 'payslips.view.own'],
+            ['label' => __('Payroll'), 'route' => 'payroll.index', 'icon' => 'wallet2', 'can' => 'payslips.view.own'],
         ],
         __('Documents') => [
             ['label' => __('Library'), 'route' => 'documents.index', 'icon' => 'folder2-open', 'can' => 'documents.view'],
@@ -66,7 +66,7 @@
         ],
         __('Administration') => [
             ['label' => __('Organization Settings'), 'route' => 'settings.organization', 'icon' => 'gear', 'can' => 'organization.manage'],
-            ['label' => __('Audit Log'), 'route' => 'audit.index', 'icon' => 'clock-history', 'can' => 'audit.view'],
+            ['label' => __('Audit Log'), 'route' => 'audit.index', 'icon' => 'activity', 'can' => 'audit.view'],
         ],
     ];
 @endphp
@@ -75,18 +75,18 @@
     <div class="app-sidebar-brand">
         <span class="text-truncate">{{ config('app.name') }}</span>
 
+        {{-- The same control the topbar uses, so the two bands of the shell
+             answer the pointer identically. --}}
         <button type="button"
-                class="btn btn-sm btn-link text-body d-lg-none p-1"
+                class="app-bar-button d-lg-none"
                 data-sidebar-toggle
                 aria-expanded="false"
                 aria-label="{{ __('Close navigation') }}">
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/>
-            </svg>
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
         </button>
     </div>
 
-    <nav class="px-2 py-2 pb-4">
+    <nav class="px-2 py-2">
         @foreach ($sections as $heading => $items)
             @php
                 // Resolve each item once so an entirely hidden section prints no heading.
@@ -100,7 +100,7 @@
             @if ($visible)
                 {{-- The first group carries no heading, so it needs no space
                      above it either. --}}
-                <div class="@if (! $loop->first) mt-3 @endif">
+                <div @class(['app-nav-group' => ! $loop->first])>
                     @if ($heading)
                         <p class="app-nav-heading">{{ $heading }}</p>
                     @endif

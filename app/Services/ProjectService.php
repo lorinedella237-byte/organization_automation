@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\DailyActivity;
 use App\Models\OrganizationMembership;
 use App\Models\Project;
+use App\Models\ProjectHistory;
 use App\Models\Report;
 use App\Models\ReportReview;
 use App\Models\ReportTemplate;
@@ -17,6 +18,16 @@ use Illuminate\Validation\ValidationException;
 
 class ProjectService
 {
+    private const PROJECT_STATUSES = ['planned', 'active', 'on_hold', 'completed', 'archived'];
+
+    private const STATUS_TRANSITIONS = [
+        'planned' => ['active', 'on_hold', 'archived'],
+        'active' => ['on_hold', 'completed', 'archived'],
+        'on_hold' => ['active', 'completed', 'archived'],
+        'completed' => ['archived'],
+        'archived' => [],
+    ];
+
     public function __construct(private WorkspaceAccess $access, private AuditRecorder $audit, private WorkspaceNotifications $notifications) {}
 
     public function visibleProjects(OrganizationMembership $actor)
@@ -37,15 +48,17 @@ class ProjectService
         $this->access->authorize($actor, 'projects.manage');
         $data = Validator::make($input, [
             'name' => ['required', 'string', 'max:180'], 'code' => ['nullable', 'string', 'max:40'],
-            'description' => ['nullable', 'string'], 'status' => ['nullable', Rule::in(['planned', 'active', 'on_hold', 'completed', 'archived'])],
+            'description' => ['nullable', 'string'], 'status' => ['nullable', Rule::in(self::PROJECT_STATUSES)],
             'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')->where('organization_id', $actor->organization_id)],
-            'lead_membership_id' => ['nullable', 'integer', Rule::exists('organization_memberships', 'id')->where('organization_id', $actor->organization_id)],
+            'lead_membership_id' => ['nullable', 'integer', Rule::exists('organization_memberships', 'id')->where(fn ($q) => $q->where('organization_id', $actor->organization_id)->where('status', 'active'))],
             'starts_on' => ['nullable', 'date_format:Y-m-d'], 'ends_on' => ['nullable', 'date_format:Y-m-d'],
         ])->validate();
         if (! empty($data['starts_on']) && ! empty($data['ends_on']) && $data['ends_on'] < $data['starts_on']) throw ValidationException::withMessages(['ends_on' => 'End date must not precede the start date.']);
         return DB::transaction(function () use ($actor, $data) {
-            $project = Project::create($data + ['organization_id' => $actor->organization_id, 'owner_membership_id' => $actor->id]);
+            $project = Project::create($data + ['organization_id' => $actor->organization_id, 'owner_membership_id' => $actor->id, 'status' => 'planned']);
             $project->members()->syncWithoutDetaching([$actor->id => ['organization_id' => $actor->organization_id]]);
+            if ($project->lead_membership_id) $project->members()->syncWithoutDetaching([$project->lead_membership_id => ['organization_id' => $actor->organization_id, 'role' => 'lead']]);
+            $this->recordProjectHistory($actor, $project, 'created', null, $project->only(['name', 'code', 'status', 'owner_membership_id', 'lead_membership_id', 'department_id', 'starts_on', 'ends_on']));
             $this->audit->record($actor->organization_id, $actor, 'project.created', 'project', $project->id);
             return $project;
         });
@@ -53,37 +66,43 @@ class ProjectService
 
     public function update(OrganizationMembership $actor, Project $project, array $input): Project
     {
-        abort_unless($project->organization_id === $actor->organization_id, 404);
-        $this->access->authorize($actor, 'projects.manage');
-        $data = Validator::make($input, ['name' => ['sometimes', 'string', 'max:180'], 'description' => ['sometimes', 'nullable', 'string'], 'status' => ['sometimes', Rule::in(['planned', 'active', 'on_hold', 'completed', 'archived'])], 'starts_on' => ['sometimes', 'nullable', 'date_format:Y-m-d'], 'ends_on' => ['sometimes', 'nullable', 'date_format:Y-m-d']])->validate();
+        $this->authorizeProject($actor, $project, 'projects.manage');
+        $data = Validator::make($input, ['name' => ['sometimes', 'string', 'max:180'], 'description' => ['sometimes', 'nullable', 'string'], 'status' => ['sometimes', Rule::in(self::PROJECT_STATUSES)], 'department_id' => ['sometimes', 'nullable', 'integer', Rule::exists('departments', 'id')->where('organization_id', $actor->organization_id)], 'lead_membership_id' => ['sometimes', 'nullable', 'integer', Rule::exists('organization_memberships', 'id')->where(fn ($q) => $q->where('organization_id', $actor->organization_id)->where('status', 'active'))], 'starts_on' => ['sometimes', 'nullable', 'date_format:Y-m-d'], 'ends_on' => ['sometimes', 'nullable', 'date_format:Y-m-d']])->validate();
+        $before = $project->getOriginal();
         $project->fill($data);
         if ($project->starts_on && $project->ends_on && $project->ends_on->lt($project->starts_on)) throw ValidationException::withMessages(['ends_on' => 'End date must not precede the start date.']);
-        $changes = array_keys($project->getDirty()); $project->save();
+        if ($project->isDirty('status') && ! in_array($project->status, self::STATUS_TRANSITIONS[$project->getOriginal('status')] ?? [], true)) throw ValidationException::withMessages(['status' => 'That project status transition is not allowed.']);
+        $changes = array_keys($project->getDirty());
+        if ($project->isDirty('lead_membership_id') && $project->lead_membership_id) $project->members()->syncWithoutDetaching([$project->lead_membership_id => ['organization_id' => $actor->organization_id, 'role' => 'lead']]);
+        $project->save();
+        if ($changes) $this->recordProjectHistory($actor, $project, $project->wasChanged('status') ? 'status_changed' : 'updated', array_intersect_key($before, array_flip($changes)), $project->only($changes));
         $this->audit->record($actor->organization_id, $actor, 'project.updated', 'project', $project->id, ['changed_fields' => $changes]);
         return $project;
     }
 
     public function createTask(OrganizationMembership $actor, Project $project, array $input): Task
     {
-        abort_unless($project->organization_id === $actor->organization_id, 404);
-        $this->access->authorize($actor, 'tasks.assign');
+        $this->authorizeProject($actor, $project, 'tasks.assign');
         $data = Validator::make($input, ['title' => ['required', 'string', 'max:220'], 'description' => ['nullable', 'string'], 'milestone_id' => ['nullable', 'integer', Rule::exists('milestones', 'id')->where('project_id', $project->id)], 'assignee_membership_id' => ['nullable', 'integer', Rule::exists('organization_memberships', 'id')->where('organization_id', $actor->organization_id)], 'status' => ['nullable', Rule::in(['todo', 'in_progress', 'blocked', 'done', 'cancelled'])], 'priority' => ['nullable', Rule::in(['low', 'normal', 'high', 'urgent'])], 'due_on' => ['nullable', 'date_format:Y-m-d']])->validate();
-        $task = $project->tasks()->create($data + ['organization_id' => $actor->organization_id]);
-        DB::table('task_history')->insert(['organization_id' => $actor->organization_id, 'task_id' => $task->id, 'actor_membership_id' => $actor->id, 'event' => 'created', 'before_values' => null, 'after_values' => json_encode($task->only(['title', 'status', 'priority', 'assignee_membership_id'])), 'created_at' => now()]);
-        $this->audit->record($actor->organization_id, $actor, 'task.created', 'task', $task->id);
-        return $task;
+        return DB::transaction(function () use ($actor, $project, $data) {
+            $task = $project->tasks()->create($data + ['organization_id' => $actor->organization_id]);
+            DB::table('task_history')->insert(['organization_id' => $actor->organization_id, 'task_id' => $task->id, 'actor_membership_id' => $actor->id, 'event' => 'created', 'before_values' => null, 'after_values' => json_encode($task->only(['title', 'status', 'priority', 'assignee_membership_id'])), 'created_at' => now()]);
+            $this->audit->record($actor->organization_id, $actor, 'task.created', 'task', $task->id);
+            return $task;
+        });
     }
 
     public function updateTask(OrganizationMembership $actor, Task $task, array $input): Task
     {
-        abort_unless($task->organization_id === $actor->organization_id, 404);
-        $this->access->authorize($actor, 'tasks.assign');
+        $this->authorizeProject($actor, $task->project, 'tasks.assign');
         $data = Validator::make($input, ['title' => ['sometimes', 'string', 'max:220'], 'description' => ['sometimes', 'nullable', 'string'], 'status' => ['sometimes', Rule::in(['todo', 'in_progress', 'blocked', 'done', 'cancelled'])], 'priority' => ['sometimes', Rule::in(['low', 'normal', 'high', 'urgent'])], 'due_on' => ['sometimes', 'nullable', 'date_format:Y-m-d'], 'assignee_membership_id' => ['sometimes', 'nullable', 'integer', Rule::exists('organization_memberships', 'id')->where('organization_id', $actor->organization_id)]])->validate();
-        $before = $task->only(array_keys($data));
-        $task->fill($data); $changes = array_keys($task->getDirty()); $task->save();
-        DB::table('task_history')->insert(['organization_id' => $actor->organization_id, 'task_id' => $task->id, 'actor_membership_id' => $actor->id, 'event' => 'updated', 'before_values' => json_encode($before), 'after_values' => json_encode($task->only(array_keys($data))), 'created_at' => now()]);
-        $this->audit->record($actor->organization_id, $actor, 'task.updated', 'task', $task->id, ['changed_fields' => $changes]);
-        return $task;
+        return DB::transaction(function () use ($actor, $task, $data) {
+            $before = $task->only(array_keys($data));
+            $task->fill($data); $changes = array_keys($task->getDirty()); $task->save();
+            if ($changes) DB::table('task_history')->insert(['organization_id' => $actor->organization_id, 'task_id' => $task->id, 'actor_membership_id' => $actor->id, 'event' => 'updated', 'before_values' => json_encode($before), 'after_values' => json_encode($task->only(array_keys($data))), 'created_at' => now()]);
+            $this->audit->record($actor->organization_id, $actor, 'task.updated', 'task', $task->id, ['changed_fields' => $changes]);
+            return $task;
+        });
     }
 
     public function addTaskComment(OrganizationMembership $actor, Task $task, string $body): object
@@ -112,12 +131,35 @@ class ProjectService
 
     public function assignMember(OrganizationMembership $actor, Project $project, int $membershipId, ?string $role = null): void
     {
-        abort_unless($project->organization_id === $actor->organization_id, 404);
-        $this->access->authorize($actor, 'projects.manage');
+        $this->authorizeProject($actor, $project, 'projects.manage');
         $member = OrganizationMembership::where('organization_id', $actor->organization_id)->whereKey($membershipId)->where('status', 'active')->firstOrFail();
         $project->members()->syncWithoutDetaching([$member->id => ['organization_id' => $actor->organization_id, 'role' => $role]]);
+        $this->recordProjectHistory($actor, $project, 'member_assigned', null, ['membership_id' => $member->id, 'role' => $role]);
         $this->notifications->record($member, 'project.assigned:'.$project->id, 'You were assigned to project '.$project->name.'.');
         $this->audit->record($actor->organization_id, $actor, 'project.member_assigned', 'project', $project->id);
+    }
+
+    public function history(OrganizationMembership $actor, Project $project)
+    {
+        $this->authorizeProject($actor, $project, 'projects.view');
+        return $project->history()->with('actor.user')->get();
+    }
+
+    private function authorizeProject(OrganizationMembership $actor, Project $project, string $ability): void
+    {
+        abort_unless($project->organization_id === $actor->organization_id, 404);
+        $scopes = $this->access->scopes($actor, $ability);
+        if (in_array('organization', $scopes, true)) return;
+        abort_unless(in_array('assigned_project', $scopes, true), 403);
+        $isMember = $project->owner_membership_id === $actor->id
+            || $project->lead_membership_id === $actor->id
+            || $project->members()->whereKey($actor->id)->exists();
+        abort_unless($isMember, 403);
+    }
+
+    private function recordProjectHistory(OrganizationMembership $actor, Project $project, string $event, ?array $before, ?array $after): void
+    {
+        ProjectHistory::create(['organization_id' => $actor->organization_id, 'project_id' => $project->id, 'actor_membership_id' => $actor->id, 'event' => $event, 'before_values' => $before, 'after_values' => $after, 'created_at' => now()]);
     }
 
     public function saveWorkLog(OrganizationMembership $actor, array $input, ?\App\Models\WorkLog $log = null): \App\Models\WorkLog
