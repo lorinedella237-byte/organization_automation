@@ -89,6 +89,16 @@ Invitation expiry/replay protection, email verification, session invalidation an
 
 ## Migration and rollback rules
 
+## Backups and restore
+
+After verifying the target database and before applying migrations, create a private dump with `php artisan lorine:backup-workspace`. The command uses a single-transaction MySQL-compatible dump, writes under `storage/app/backups` by default, and prints only the output path and SHA-256. Set `MYSQLDUMP_BINARY` when the executable is not on `PATH`. Keep the dump outside version control and test it in a disposable database before treating it as a recovery point.
+
+The scheduled command runs daily at 02:45 when Laravel's scheduler is active. A production worker must supervise `php artisan schedule:work` or invoke `php artisan schedule:run` from cron. A restore requires maintenance mode, a verified dump, the database administrator's restore command, then `php artisan migrate --force` and application smoke checks. This repository does not claim a production restore drill.
+
+## Privileged account two-factor authentication
+
+After migrations `2026_10_29_000007_add_two_factor_authentication.php` and `2026_10_29_000008_create_compensation_adjustments.php`, an authenticated user can create a TOTP secret with `POST /security/2fa/begin` and confirm the six-digit authenticator code with `POST /security/2fa/confirm`. The secret is encrypted at rest and never returned after confirmation. In production, workspace routes require a confirmed factor for users holding organization, role or payroll administration grants. Configure the application key before enabling this flow; losing it makes encrypted secrets unrecoverable and requires an account recovery procedure.
+
 All schema changes are migrations. Only missing rollback methods were repaired in the five original custom migrations; their `up()` definitions are unchanged.
 
 The identity alignment migration changes phone/legacy employee number to nullable, adds UUID uniqueness, adds the audit timestamp and renames the permission table. Its rollback refuses to run if new identities have null legacy required fields. Do not invent employee numbers or phone numbers to force a rollback; reconcile explicitly or restore a verified backup into a separate database.

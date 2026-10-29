@@ -87,6 +87,17 @@ class InvitationService
         return $invitation;
     }
 
+    public function unavailableReason(string $token): string
+    {
+        $invitation = OrganizationInvitation::where('token_hash', hash('sha256', $token))->first();
+        if (! $invitation) return 'unknown';
+        if ($invitation->accepted_at) return 'accepted';
+        if ($invitation->revoked_at) return 'revoked';
+        if ($invitation->expires_at->isPast()) return 'expired';
+        if (! Organization::whereKey($invitation->organization_id)->where('status', 'active')->exists()) return 'suspended';
+        return 'unavailable';
+    }
+
     public function accept(string $token, array $input, ?User $signedIn): OrganizationMembership
     {
         // Resolve without disclosure, then lock the workspace before its invitation and identity.

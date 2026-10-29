@@ -12,6 +12,13 @@
      * renders before Codex has registered them. An unresolved route renders as
      * a disabled item rather than throwing.
      *
+     * $withoutScreen does the same for the opposite case, which arrived with
+     * the Phase 2 to Phase 7 backend: the route exists and answers, but only
+     * with JSON, because no Blade screen has been built for it yet. Linking to
+     * it would hand a person a page of raw JSON, which reads as a broken
+     * product rather than as unfinished one. Remove a name from this list in
+     * the same change that adds its screen.
+     *
      * Hiding an item is a usability affordance only. Every destination must
      * enforce its own authorization server-side.
      *
@@ -22,12 +29,18 @@
      * access.
      */
     $navPreview = ($navPreview ?? false) && app()->isLocal();
+
+    $withoutScreen = [
+        'tasks.my', 'activities.index', 'reports.index', 'attendance.index',
+        'leave.index', 'documents.index', 'announcements.index', 'payroll.index',
+    ];
+
     $sections = [
         null => [
             ['label' => __('Dashboard'), 'route' => 'dashboard', 'icon' => 'grid', 'can' => null],
         ],
         __('Work') => [
-            ['label' => __('My Tasks'), 'route' => 'tasks.mine', 'icon' => 'check2-square', 'can' => 'tasks.view.own'],
+            ['label' => __('My Tasks'), 'route' => 'tasks.my', 'icon' => 'check2-square', 'can' => 'tasks.view.own'],
             ['label' => __('Projects'), 'route' => 'projects.index', 'icon' => 'kanban', 'can' => 'projects.view'],
             ['label' => __('Daily Activities'), 'route' => 'activities.index', 'icon' => 'journal-text', 'can' => 'activities.view.own'],
             ['label' => __('Reports'), 'route' => 'reports.index', 'icon' => 'file-earmark-text', 'can' => 'reports.view.own'],
@@ -92,12 +105,16 @@
                     <ul class="nav flex-column gap-1">
                         @foreach ($visible as $item)
                             @php
-                                $exists = Route::has($item['route']);
+                                $exists = Route::has($item['route']) && ! in_array($item['route'], $withoutScreen, true);
                                 $isActive = $exists && request()->routeIs($item['route'] . '*');
                             @endphp
 
                             <li class="nav-item">
-                                <a class="app-nav-link @class(['active' => $isActive, 'disabled opacity-50' => ! $exists])"
+                                {{-- @class emits the whole class attribute, so it
+                                     cannot sit inside one. Nesting it produced
+                                     class="app-nav-link class="disabled ...""
+                                     and neither state ever reached the element. --}}
+                                <a @class(['app-nav-link', 'active' => $isActive, 'disabled opacity-50' => ! $exists])
                                    href="{{ $exists ? route($item['route']) : '#' }}"
                                    @if ($isActive) aria-current="page" @endif
                                    @unless ($exists)

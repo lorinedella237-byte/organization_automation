@@ -7,6 +7,7 @@ use App\Models\OrganizationMembership;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\WorkspaceProvisioner;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
@@ -153,5 +154,78 @@ class WorkspaceScreensRenderTest extends TestCase
 
             $this->assertSame($status, $subject->fresh()->status);
         }
+    }
+
+    public function test_audit_viewer_separates_no_details_from_recorded_details(): void
+    {
+        $this->actingAs($this->owner->user);
+
+        // Provisioning records an entry with no metadata, which the column
+        // stores as the JSON string "[]". That is not blank, so a plain
+        // emptiness check printed the two characters to the reader.
+        $this->get('/workspace/audit')
+            ->assertOk()
+            ->assertSee('None')
+            ->assertDontSee('[]');
+
+        $subject = OrganizationMembership::create([
+            'organization_id' => $this->organization->id,
+            'user_id' => User::factory()->create()->id,
+        ]);
+
+        $this->post('/workspace/staff/'.$subject->id.'/status', [
+            'status' => 'suspended',
+            'reason' => 'Suspended pending an access review.',
+        ])->assertRedirect();
+
+        $this->get('/workspace/audit')
+            ->assertOk()
+            ->assertSee('before status: active', false)
+            ->assertSee('after status: suspended', false)
+            ->assertSee('Suspended pending an access review.');
+    }
+
+    public function test_a_denied_page_returns_a_signed_in_reader_to_the_application(): void
+    {
+        $member = $this->memberWithRole('staff');
+
+        // The shell is not rendered on an error page, so the only way back is
+        // the link the page itself offers. Sending a signed-in reader to the
+        // public landing page puts them outside the application they are in.
+        $this->actingAs($member->user)
+            ->get('/workspace/roles')
+            ->assertForbidden()
+            ->assertSee(url('/home'))
+            // A suspended membership is denied the dashboard too, so the page
+            // has to carry the sign out its own message tells them to use.
+            ->assertSee('Sign out');
+    }
+
+    public function test_an_error_page_keeps_the_public_link_for_a_guest(): void
+    {
+        // No session has started for an unmatched URL, so the page must fall
+        // back rather than try to read who the reader is.
+        $this->get('/no-such-page')
+            ->assertNotFound()
+            ->assertSee('Back to safety')
+            ->assertDontSee('Sign out');
+    }
+
+    private function memberWithRole(string $code): OrganizationMembership
+    {
+        $membership = OrganizationMembership::create([
+            'organization_id' => $this->organization->id,
+            'user_id' => User::factory()->create()->id,
+        ]);
+
+        DB::table('membership_roles')->insert([
+            'organization_id' => $this->organization->id,
+            'organization_membership_id' => $membership->id,
+            'role_id' => Role::where('organization_id', $this->organization->id)->where('code', $code)->value('id'),
+            'assigned_by_membership_id' => $this->owner->id,
+            'created_at' => now(),
+        ]);
+
+        return $membership;
     }
 }

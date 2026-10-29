@@ -1,3 +1,8 @@
+{{--
+    Session aware for the same reason as 403: a stale or mistyped workspace URL
+    should return the reader to the dashboard, not to the public landing page.
+--}}
+@php($sessionSafe = true)
 @extends('errors.layout')
 
 @section('code', '404')

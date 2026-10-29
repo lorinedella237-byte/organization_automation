@@ -49,13 +49,41 @@
                                     <span class="text-secondary font-monospace">#{{ $entry->entity_id }}</span>
                                 @endif
                             </td>
-                            <td class="font-monospace small text-secondary">
-                                {{ $entry->actor_membership_id ? '#'.$entry->actor_membership_id : __('System') }}
+                            <td class="small">
+                                {{--
+                                    A membership id is not attribution for a person reading
+                                    this page, so the name is used when the query supplies
+                                    it. The id remains the fallback, which is also what an
+                                    entry whose identity was later deleted will show.
+                                --}}
+                                @if (filled(trim(($entry->actor_first_name ?? '').' '.($entry->actor_last_name ?? ''))))
+                                    {{ trim(($entry->actor_first_name ?? '').' '.($entry->actor_last_name ?? '')) }}
+                                @elseif ($entry->actor_membership_id)
+                                    <span class="font-monospace text-secondary">#{{ $entry->actor_membership_id }}</span>
+                                @else
+                                    <span class="text-secondary">{{ __('System') }}</span>
+                                @endif
                             </td>
                             <td class="small">
-                                @if (filled($entry->metadata))
+                                @php
+                                    // The column holds a JSON string, and an entry with no
+                                    // metadata stores "[]", which is not blank. Decoding first
+                                    // is what separates "nothing was recorded" from the two
+                                    // characters that say so.
+                                    $details = json_decode((string) $entry->metadata, true);
+                                    $details = is_array($details) ? $details : [];
+                                @endphp
+
+                                @if ($details)
                                     {{-- Escaped, never rendered as markup. --}}
-                                    <span class="text-secondary">{{ Str::limit($entry->metadata, 120) }}</span>
+                                    <ul class="list-unstyled mb-0 text-secondary">
+                                        @foreach ($details as $key => $value)
+                                            @php
+                                                $shown = is_array($value) ? implode(', ', $value) : (string) $value;
+                                            @endphp
+                                            <li>{{ str_replace('_', ' ', $key).': '.Str::limit($shown, 80) }}</li>
+                                        @endforeach
+                                    </ul>
                                 @else
                                     <span class="text-secondary">{{ __('None') }}</span>
                                 @endif

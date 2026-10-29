@@ -1,0 +1,4 @@
+<?php
+namespace App\Http\Controllers;
+use App\Models\Announcement; use App\Models\OrganizationMembership; use App\Services\AnnouncementService; use Illuminate\Http\Request;
+class AnnouncementController extends Controller { public function __construct(private AnnouncementService $announcements){} private function actor(Request $r):OrganizationMembership{return $r->attributes->get('currentMembership');} public function index(Request $r){return response()->json($this->announcements->visible($this->actor($r))->paginate(50));} public function store(Request $r){return response()->json(['data'=>$this->announcements->create($this->actor($r),$r->all())],201);} public function publish(Request $r,int $announcement){$a=Announcement::where('organization_id',$this->actor($r)->organization_id)->findOrFail($announcement);return response()->json(['data'=>$this->announcements->publish($this->actor($r),$a)]);}}

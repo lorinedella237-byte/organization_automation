@@ -1,14 +1,24 @@
 {{--
     Error page shell.
 
-    Intentionally self-contained: no @vite, no session reads, no queries. A 500
-    or 503 can occur when the asset manifest is missing or the database is
-    unreachable, and an error page that depends on those would fail to render
-    and mask the real fault. Styles are inline for the same reason.
+    Intentionally self-contained: no @vite, no queries. A 500 or 503 can occur
+    when the asset manifest is missing or the database is unreachable, and an
+    error page that depends on those would fail to render and mask the real
+    fault. Styles are inline for the same reason.
+
+    The return link is session aware only for views that opt in by setting
+    $sessionSafe, which 403 and 404 do. Reading auth state inside a 500 or 503
+    could throw while the session store is itself the thing that is broken, and
+    would replace the error page with a second error. Those views leave it unset
+    and keep the public link.
 
     Never echo exception messages, stack traces or SQL here. The message shown
     is written per status code, not taken from the exception.
 --}}
+@php
+    $sessionSafe = $sessionSafe ?? false;
+    $signedIn = $sessionSafe && request()->hasSession() && auth()->check();
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
@@ -80,6 +90,13 @@
             color: var(--muted);
         }
 
+        .actions {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
         a {
             display: inline-block;
             padding: 0.5rem 1rem;
@@ -90,7 +107,20 @@
             text-decoration: none;
         }
 
-        a:focus-visible {
+        form { margin: 0; }
+
+        .quiet {
+            padding: 0;
+            border: 0;
+            background: none;
+            color: var(--muted);
+            font: inherit;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        a:focus-visible,
+        .quiet:focus-visible {
             outline: 2px solid var(--accent);
             outline-offset: 2px;
         }
@@ -102,7 +132,16 @@
         <h1>@yield('title')</h1>
         <p>@yield('message')</p>
 
-        <a href="{{ url('/') }}">{{ __('Back to safety') }}</a>
+        <div class="actions">
+            @if ($signedIn)
+                {{-- Keep a signed-in person inside the application rather than
+                     returning them to the public page they are already past. --}}
+                <a href="{{ url('/home') }}">{{ __('Back to the dashboard') }}</a>
+                @yield('escape')
+            @else
+                <a href="{{ url('/') }}">{{ __('Back to safety') }}</a>
+            @endif
+        </div>
     </main>
 </body>
 </html>

@@ -15,7 +15,9 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('lorine:purge-workspace-data')->dailyAt('02:15')->withoutOverlapping();
+        $schedule->command('lorine:mark-stale-attendance')->hourly()->withoutOverlapping();
+        $schedule->command('lorine:backup-workspace')->dailyAt('02:45')->withoutOverlapping();
     }
 
     /**

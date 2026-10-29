@@ -1,0 +1,4 @@
+<?php
+namespace App\Http\Controllers;
+use App\Models\OrganizationMembership; use App\Models\WorkCalendar; use App\Services\WorkCalendarService; use Illuminate\Http\Request;
+class WorkCalendarController extends Controller { public function __construct(private WorkCalendarService $calendars){} private function actor(Request $r):OrganizationMembership{return $r->attributes->get('currentMembership');} public function index(Request $r){$a=$this->actor($r);return response()->json(['calendars'=>WorkCalendar::where('organization_id',$a->organization_id)->get(),'holidays'=>\App\Models\OrganizationHoliday::where('organization_id',$a->organization_id)->orderBy('holiday_date')->get()]);} public function store(Request $r){return response()->json(['data'=>$this->calendars->save($this->actor($r),$r->all())],201);} public function holiday(Request $r){return response()->json(['data'=>$this->calendars->holiday($this->actor($r),$r->all())],201);} }

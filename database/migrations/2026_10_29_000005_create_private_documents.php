@@ -1,0 +1,12 @@
+<?php
+use Illuminate\Database\Migrations\Migration; use Illuminate\Database\Schema\Blueprint; use Illuminate\Support\Facades\Schema;
+return new class extends Migration {
+    public function up(): void {
+        Schema::create('folders', function(Blueprint $t){$t->id();$t->foreignId('organization_id')->constrained()->restrictOnDelete();$t->foreignId('parent_id')->nullable()->constrained('folders')->nullOnDelete();$t->string('name',180);$t->timestamps();$t->unique(['organization_id','parent_id','name']);});
+        Schema::create('documents', function(Blueprint $t){$t->id();$t->foreignId('organization_id')->constrained()->restrictOnDelete();$t->foreignId('folder_id')->nullable()->constrained()->nullOnDelete();$t->foreignId('uploaded_by_membership_id')->constrained('organization_memberships')->restrictOnDelete();$t->string('name',255);$t->string('status',20)->default('quarantined')->index();$t->unsignedInteger('current_version')->default(1);$t->timestamp('trashed_at')->nullable();$t->timestamps();});
+        Schema::create('document_versions', function(Blueprint $t){$t->id();$t->foreignId('organization_id')->constrained()->restrictOnDelete();$t->foreignId('document_id')->constrained()->cascadeOnDelete();$t->unsignedInteger('version');$t->string('storage_key',500);$t->string('mime_type',180);$t->unsignedBigInteger('size');$t->string('sha256',64);$t->string('scan_status',20)->default('pending');$t->timestamps();$t->unique(['document_id','version']);});
+        Schema::create('document_shares', function(Blueprint $t){$t->id();$t->foreignId('organization_id')->constrained()->restrictOnDelete();$t->foreignId('document_id')->constrained()->cascadeOnDelete();$t->foreignId('membership_id')->nullable()->constrained('organization_memberships')->cascadeOnDelete();$t->foreignId('department_id')->nullable()->constrained()->cascadeOnDelete();$t->foreignId('team_id')->nullable()->constrained()->cascadeOnDelete();$t->string('permission',20)->default('view');$t->timestamps();});
+        Schema::create('document_links', function(Blueprint $t){$t->id();$t->foreignId('organization_id')->constrained()->restrictOnDelete();$t->foreignId('document_id')->constrained()->cascadeOnDelete();$t->string('linkable_type');$t->unsignedBigInteger('linkable_id');$t->timestamps();$t->index(['linkable_type','linkable_id']);$t->unique(['document_id','linkable_type','linkable_id']);});
+    }
+    public function down(): void { foreach(['document_links','document_shares','document_versions','documents','folders'] as $t)Schema::dropIfExists($t); }
+};

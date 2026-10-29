@@ -2,6 +2,8 @@
 
 return [
 
+    'private_scanner_binary' => env('PRIVATE_SCANNER_BINARY', ''),
+
     /*
     |--------------------------------------------------------------------------
     | Default Filesystem Disk

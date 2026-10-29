@@ -10,6 +10,7 @@ use App\Services\InvitationService;
 use App\Services\RoleService;
 use App\Services\WorkspaceAccess;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class InvitationController extends Controller
 {
@@ -76,7 +77,13 @@ class InvitationController extends Controller
 
     public function show(string $token, InvitationService $invitations)
     {
-        $invitation = $invitations->find($token);
+        try {
+            $invitation = $invitations->find($token);
+        } catch (HttpExceptionInterface $exception) {
+            if ($exception->getStatusCode() !== 410) throw $exception;
+            return response()->view('auth.invitation-unavailable', ['state' => $invitations->unavailableReason($token)], 410)
+                ->header('Referrer-Policy', 'no-referrer')->header('Cache-Control', 'no-store');
+        }
 
         return response()->view('auth.accept-invitation', [
             'token' => $token,

@@ -13,8 +13,8 @@ class AuditController extends Controller
         $actor = $request->attributes->get('currentMembership');
         $access->authorize($actor, 'audit.view');
 
-        $page = DB::table('audit_logs')->where('organization_id', $actor->organization_id)
-            ->select('id', 'actor_membership_id', 'action', 'entity_type', 'entity_id', 'metadata', 'created_at')->orderByDesc('id')->paginate(25);
+        $page = DB::table('audit_logs')->leftJoin('users', 'users.id', '=', 'audit_logs.user_id')->where('audit_logs.organization_id', $actor->organization_id)
+            ->select('audit_logs.id', 'audit_logs.actor_membership_id', 'audit_logs.action', 'audit_logs.entity_type', 'audit_logs.entity_id', 'audit_logs.metadata', 'audit_logs.created_at', 'users.first_name as actor_first_name', 'users.last_name as actor_last_name')->orderByDesc('audit_logs.id')->paginate(25);
 
         // Claude, 2026-10-28: HTML requests get the server-rendered viewer;
         // asynchronous callers still get the same JSON.

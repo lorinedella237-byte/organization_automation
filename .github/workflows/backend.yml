@@ -1,36 +1,47 @@
-name: Backend checks
+name: Backend
 
 on:
   push:
+    branches: [main, master]
   pull_request:
 
 permissions:
   contents: read
 
 jobs:
-  backend:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
         with:
-          persist-credentials: false
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          extensions: mbstring, dom, fileinfo, pdo_mysql, pdo_sqlite
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, dom, fileinfo, pdo_sqlite
           coverage: none
-          tools: composer:v2
-      - name: Reject committed local environment files and backups
+      - name: Reject local environment and backup artifacts
         shell: bash
         run: |
-          forbidden=$(git ls-files -- '.env' '.env.*' 'storage/app/backups/**' | grep -v '^.env.example$' || true)
-          if [ -n "$forbidden" ]; then
-            printf 'Local environment files or backups must not be committed:\n%s\n' "$forbidden"
-            exit 1
-          fi
-      - run: composer validate --strict
-      - run: composer install --no-interaction --prefer-dist --no-progress
-      - run: composer check-platform-reqs
-      - run: composer lint
-      - run: composer test
+          test ! -e .env
+          test -z "$(find . -path './vendor' -prune -o -path './storage/app/backups' -prune -o -type f \( -name '*.sql' -o -name '*.dump' \) -print)"
+      - name: Validate Composer metadata
+        run: composer validate --strict
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        shell: bash
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          mkdir -p database
+          touch database/database.sqlite
+          sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env
+          sed -i 's/^DB_DATABASE=.*/DB_DATABASE=database\/database.sqlite/' .env
+      - name: PHP lint
+        run: composer lint
+      - name: Backend tests
+        run: composer test

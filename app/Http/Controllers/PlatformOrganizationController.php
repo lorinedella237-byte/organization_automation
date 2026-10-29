@@ -11,6 +11,12 @@ use Illuminate\Validation\Rule;
 
 class PlatformOrganizationController extends Controller
 {
+    public function create(Request $request)
+    {
+        abort_unless(DB::table('platform_administrators')->where('user_id', $request->user()->id)->exists(), 403);
+        return $request->expectsJson() ? response()->json(['data' => ['currencies' => ['NGN', 'USD', 'GBP', 'EUR']]]) : view('platform.organizations.create', ['currencies' => ['NGN', 'USD', 'GBP', 'EUR']]);
+    }
+
     public function store(Request $request, RoleService $roles, InvitationService $invitations)
     {
         abort_unless(DB::table('platform_administrators')->where('user_id', $request->user()->id)->exists(), 403);

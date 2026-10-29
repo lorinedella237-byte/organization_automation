@@ -1,0 +1,8 @@
+<?php
+namespace App\Console\Commands;
+use Illuminate\Console\Command; use Illuminate\Support\Facades\File; use Illuminate\Support\Str;
+class BackupWorkspace extends Command
+{
+ protected $signature='lorine:backup-workspace {--output=}'; protected $description='Create a database dump in the private backup directory without exposing credentials.';
+ public function handle():int { $connection=config('database.default'); $cfg=config("database.connections.$connection"); abort_unless(in_array($cfg['driver']??'', ['mysql','mariadb'], true),422,'The backup command currently supports MySQL-compatible connections only.'); $output=$this->option('output') ?: storage_path('app/backups/lorine-'.now()->format('Ymd-His').'.sql'); File::ensureDirectoryExists(dirname($output)); $binary=(string)env('MYSQLDUMP_BINARY','mysqldump'); $args=[$binary,'--single-transaction','--quick','--routines','--triggers','--host='.$cfg['host'],'--port='.$cfg['port'],'--user='.$cfg['username'],'--result-file='.$output,$cfg['database']]; $command=implode(' ',array_map('escapeshellarg',$args)); $env=getenv(); if($cfg['password']!=='')$env['MYSQL_PWD']=$cfg['password']; $process=proc_open($command,[1=>['pipe','w'],2=>['pipe','w']],$pipes,null,$env); abort_unless(is_resource($process),500,'Could not start the database backup process.'); $error=stream_get_contents($pipes[2]); fclose($pipes[1]); fclose($pipes[2]); $code=proc_close($process); if($code!==0){@unlink($output);$this->error('Database backup failed without exposing command output.');return self::FAILURE;} $this->info('Backup created: '.$output); $this->info('SHA-256: '.hash_file('sha256',$output)); return self::SUCCESS; }
+}
