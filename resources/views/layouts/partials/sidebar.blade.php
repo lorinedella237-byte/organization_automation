@@ -39,13 +39,20 @@
         __('Work') => [
             ['label' => __('My Tasks'), 'route' => 'tasks.my', 'icon' => 'check2-square', 'can' => 'tasks.view.own'],
             ['label' => __('Projects'), 'route' => 'projects.index', 'icon' => 'kanban', 'can' => 'projects.view'],
-            ['label' => __('Daily Activities'), 'route' => 'activities.index', 'icon' => 'journal-text', 'can' => 'activities.view.own'],
-            ['label' => __('Work Logs'), 'route' => 'work-logs.index', 'icon' => 'clock-history', 'can' => 'activities.create'],
+            ['label' => __('Daily Activities'), 'route' => 'activities.index', 'icon' => 'journal', 'can' => 'activities.view.own'],
+            ['label' => __('Work Logs'), 'route' => 'work-logs.index', 'icon' => 'stopwatch', 'can' => 'activities.create'],
             ['label' => __('Reports'), 'route' => 'reports.index', 'icon' => 'file-earmark-text', 'can' => 'reports.view.own'],
         ],
-        __('Time') => [
+        /*
+         * Attendance, leave and payslips answer one question between them:
+         * what am I owed for the time I have put in. Payroll sat alone under
+         * a Finance heading of its own, which spent a whole row of chrome to
+         * label a single item.
+         */
+        __('Time and pay') => [
             ['label' => __('Attendance'), 'route' => 'attendance.index', 'icon' => 'clock', 'can' => 'attendance.view.own'],
             ['label' => __('Leave'), 'route' => 'leave.index', 'icon' => 'calendar-event', 'can' => 'leave.view.own'],
+            ['label' => __('Payroll'), 'route' => 'payroll.index', 'icon' => 'receipt', 'can' => 'payslips.view.own'],
         ],
         __('Documents') => [
             ['label' => __('Library'), 'route' => 'documents.index', 'icon' => 'folder2-open', 'can' => 'documents.view'],
@@ -54,28 +61,19 @@
         __('People') => [
             ['label' => __('Staff'), 'route' => 'staff.index', 'icon' => 'people', 'can' => 'staff.view'],
             ['label' => __('Invitations'), 'route' => 'invitations.index', 'icon' => 'envelope', 'can' => 'staff.invite'],
-            ['label' => __('Departments & Teams'), 'route' => 'departments.index', 'icon' => 'diagram-3', 'can' => 'departments.manage'],
+            ['label' => __('Departments & Teams'), 'route' => 'departments.index', 'icon' => 'diagram-2', 'can' => 'departments.manage'],
             ['label' => __('Roles'), 'route' => 'roles.index', 'icon' => 'shield-check', 'can' => 'roles.manage'],
-        ],
-        __('Finance') => [
-            /*
-             * One entry, not two. The payroll screen serves the person running
-             * the cycle and the person collecting a payslip from the same
-             * route, and the server decides which of the two it shows. Listing
-             * it twice would give one destination two names in one sidebar.
-             */
-            ['label' => __('Payroll'), 'route' => 'payroll.index', 'icon' => 'cash-stack', 'can' => 'payslips.view.own'],
         ],
         __('Administration') => [
             ['label' => __('Organization Settings'), 'route' => 'settings.organization', 'icon' => 'gear', 'can' => 'organization.manage'],
-            ['label' => __('Audit Log'), 'route' => 'audit.index', 'icon' => 'list-columns', 'can' => 'audit.view'],
+            ['label' => __('Audit Log'), 'route' => 'audit.index', 'icon' => 'clock-history', 'can' => 'audit.view'],
         ],
     ];
 @endphp
 
 <aside class="app-sidebar" data-sidebar aria-label="{{ __('Main navigation') }}">
-    <div class="d-flex align-items-center justify-content-between px-3" style="height: var(--lorine-topbar-height)">
-        <span class="fw-semibold text-truncate">{{ config('app.name') }}</span>
+    <div class="app-sidebar-brand">
+        <span class="text-truncate">{{ config('app.name') }}</span>
 
         <button type="button"
                 class="btn btn-sm btn-link text-body d-lg-none p-1"
@@ -88,7 +86,7 @@
         </button>
     </div>
 
-    <nav class="px-2 pb-4">
+    <nav class="px-2 py-2 pb-4">
         @foreach ($sections as $heading => $items)
             @php
                 // Resolve each item once so an entirely hidden section prints no heading.
@@ -100,12 +98,14 @@
             @endphp
 
             @if ($visible)
-                <div class="mt-3">
+                {{-- The first group carries no heading, so it needs no space
+                     above it either. --}}
+                <div class="@if (! $loop->first) mt-3 @endif">
                     @if ($heading)
                         <p class="app-nav-heading">{{ $heading }}</p>
                     @endif
 
-                    <ul class="nav flex-column gap-1">
+                    <ul class="nav flex-column">
                         @foreach ($visible as $item)
                             @php
                                 $exists = Route::has($item['route']) && ! in_array($item['route'], $withoutScreen, true);
