@@ -1,6 +1,6 @@
-# Lorine
+# Meridian
 
-Lorine is a Laravel 12 workspace application with project/task management, daily activities, reports, attendance, leave, private documents, announcements, payroll, invitations, audit history, and role-based workspace access.
+Meridian is a Laravel 12 workspace application with project/task management, daily activities, reports, attendance, leave, private documents, announcements, payroll, invitations, audit history, and role-based workspace access.
 
 ## Requirements
 
