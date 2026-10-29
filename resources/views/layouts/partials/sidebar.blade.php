@@ -30,10 +30,7 @@
      */
     $navPreview = ($navPreview ?? false) && app()->isLocal();
 
-    $withoutScreen = [
-        'tasks.my', 'activities.index', 'reports.index', 'attendance.index',
-        'leave.index', 'documents.index', 'announcements.index', 'payroll.index',
-    ];
+    $withoutScreen = [];
 
     $sections = [
         null => [
@@ -43,6 +40,7 @@
             ['label' => __('My Tasks'), 'route' => 'tasks.my', 'icon' => 'check2-square', 'can' => 'tasks.view.own'],
             ['label' => __('Projects'), 'route' => 'projects.index', 'icon' => 'kanban', 'can' => 'projects.view'],
             ['label' => __('Daily Activities'), 'route' => 'activities.index', 'icon' => 'journal-text', 'can' => 'activities.view.own'],
+            ['label' => __('Work Logs'), 'route' => 'work-logs.index', 'icon' => 'clock-history', 'can' => 'activities.create'],
             ['label' => __('Reports'), 'route' => 'reports.index', 'icon' => 'file-earmark-text', 'can' => 'reports.view.own'],
         ],
         __('Time') => [
@@ -60,8 +58,13 @@
             ['label' => __('Roles'), 'route' => 'roles.index', 'icon' => 'shield-check', 'can' => 'roles.manage'],
         ],
         __('Finance') => [
-            ['label' => __('Payroll'), 'route' => 'payroll.index', 'icon' => 'cash-stack', 'can' => 'payroll.manage'],
-            ['label' => __('My Payslips'), 'route' => 'payslips.mine', 'icon' => 'receipt', 'can' => 'payslips.view.own'],
+            /*
+             * One entry, not two. The payroll screen serves the person running
+             * the cycle and the person collecting a payslip from the same
+             * route, and the server decides which of the two it shows. Listing
+             * it twice would give one destination two names in one sidebar.
+             */
+            ['label' => __('Payroll'), 'route' => 'payroll.index', 'icon' => 'cash-stack', 'can' => 'payslips.view.own'],
         ],
         __('Administration') => [
             ['label' => __('Organization Settings'), 'route' => 'settings.organization', 'icon' => 'gear', 'can' => 'organization.manage'],

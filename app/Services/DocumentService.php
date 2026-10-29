@@ -38,5 +38,47 @@ class DocumentService
     {
         abort_unless($document->organization_id===$actor->organization_id,404);$this->access->authorize($actor,'files.share',$actor);$data=Validator::make($input,['linkable_type'=>['required',Rule::in(['project','task','daily_activity','report'])],'linkable_id'=>['required','integer']])->validate();$tables=['project'=>'projects','task'=>'tasks','daily_activity'=>'daily_activities','report'=>'reports'];$exists=DB::table($tables[$data['linkable_type']])->where('organization_id',$actor->organization_id)->where('id',$data['linkable_id'])->exists();abort_unless($exists,422,'The linked record is not in this workspace.');return DocumentLink::firstOrCreate(['organization_id'=>$actor->organization_id,'document_id'=>$document->id,'linkable_type'=>$data['linkable_type'],'linkable_id'=>$data['linkable_id']]);
     }
-    public function authorizeRead(OrganizationMembership $actor,Document $document):DocumentVersion { abort_unless($document->organization_id===$actor->organization_id && $document->status==='available' && is_null($document->trashed_at),404); $scopes=$this->access->scopes($actor,'documents.view'); $allowed=in_array('organization',$scopes,true)||in_array('own',$scopes,true)&&$document->uploaded_by_membership_id===$actor->id||DocumentShare::where('organization_id',$actor->organization_id)->where('document_id',$document->id)->where(function($q)use($actor){$q->where('membership_id',$actor->id)->orWhere('department_id',$actor->department_id)->orWhere('team_id',$actor->team_id)->orWhere(function($q){$q->whereNull('membership_id')->whereNull('department_id')->whereNull('team_id');});})->exists(); abort_unless($allowed,403); return $document->versions()->where('scan_status','clean')->latest('version')->firstOrFail(); }
+    /*
+     * The same rule authorizeRead applies below, expressed as a query so a
+     * list can be built from it. Keeping the two in one class is deliberate:
+     * a browser list that does not match the download check either hides
+     * files people may read or advertises files they may not.
+     */
+    public function visibleDocuments(OrganizationMembership $actor)
+    {
+        $scopes = $this->access->scopes($actor, 'documents.view');
+        $query = Document::where('organization_id', $actor->organization_id)->whereNull('trashed_at');
+        if (in_array('organization', $scopes, true)) {
+            return $query;
+        }
+
+        $shared = DocumentShare::where('organization_id', $actor->organization_id)
+            ->where(function ($q) use ($actor) {
+                $q->where('membership_id', $actor->id);
+                // Guarded: without these the null department or team of a
+                // member who has neither matches every share that targets
+                // someone else, because `where(col, null)` becomes `is null`.
+                if ($actor->department_id) {
+                    $q->orWhere('department_id', $actor->department_id);
+                }
+                if ($actor->team_id) {
+                    $q->orWhere('team_id', $actor->team_id);
+                }
+                $q->orWhere(function ($q) { $q->whereNull('membership_id')->whereNull('department_id')->whereNull('team_id'); });
+            })->select('document_id');
+
+        return $query->where(function ($q) use ($actor, $scopes, $shared) {
+            $q->whereIn('id', $shared);
+            if (in_array('own', $scopes, true)) {
+                $q->orWhere('uploaded_by_membership_id', $actor->id);
+            }
+        });
+    }
+
+    public function authorizeRead(OrganizationMembership $actor,Document $document):DocumentVersion { abort_unless($document->organization_id===$actor->organization_id && $document->status==='available' && is_null($document->trashed_at),404); $scopes=$this->access->scopes($actor,'documents.view'); // Claude, 2026-10-29: the department and team clauses were unguarded,
+        // so for a member belonging to neither they became `department_id is
+        // null` and `team_id is null`, which match every share aimed at a
+        // single person. Any shared file was readable by anyone without a
+        // department. The checks are now skipped rather than inverted.
+        $allowed=in_array('organization',$scopes,true)||in_array('own',$scopes,true)&&$document->uploaded_by_membership_id===$actor->id||$this->visibleDocuments($actor)->whereKey($document->id)->exists(); abort_unless($allowed,403); return $document->versions()->where('scan_status','clean')->latest('version')->firstOrFail(); }
 }
