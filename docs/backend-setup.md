@@ -22,7 +22,7 @@ Local defaults are `APP_NAME=Meridian`, `FILESYSTEM_DISK=private`, `QUEUE_CONNEC
 
 ### Demo admin seeder
 
-After migrations, run `php artisan db:seed --class=AdminSeeder`. On local/testing installations, `php artisan db:seed` also calls this seeder automatically (including `php artisan migrate --seed`).
+After migrations, run `php artisan db:seed --class=DemoWorkspaceSeeder` for the demo account plus its organization and owner membership. On local/testing installations, `php artisan db:seed` calls this automatically (including `php artisan migrate --seed`). `AdminSeeder` remains available for an identity only. Repeated workspace seeding preserves existing memberships and grants.
 
 Default local credentials:
 
@@ -38,7 +38,19 @@ Open `/login` on your application server (normally `http://127.0.0.1:8000/login`
 
 Login renews the session ID and CSRF token. Logout is POST-only and invalidates the session and remember-me cookie. Five failed attempts for one email/IP pair cause a 60-second lockout; an additional IP limit permits at most 30 login submissions per minute. Invalid credentials use the same error for unknown emails and wrong passwords. Passwords are never flashed back into the form. This follows Laravel's [session authentication guidance](https://laravel.com/docs/12.x/authentication).
 
-**Current limitation:** organization memberships and administrator authorization remain pending Phase 1. The account home confirms identity only; it does not expose organization data or grant a global authorization bypass. Once membership/RBAC exists, extend this seeder to provision the demo organization and its scoped administrator role. Invitations, password reset, email-verification delivery/enforcement and membership suspension are still pending.
+The demo account now owns the `Meridian Demo` workspace. Staff, roles, departments/teams, settings, audit and invitations operate under workspace permissions. Platform provisioning is a separate privilege and gives no routine access to workspace data. Membership suspension and role changes take effect on the next request. See `docs/contracts/workspace-access.md` for the full route/payload contract. Later project, reporting, document, attendance, leave and payroll modules remain pending.
+
+Invitation mail requires the database queue worker described above. With `MAIL_MAILER=log`, accepted queue jobs write the invitation message/link locally; no external email is sent. Invitation tokens are hashed in the invitation table and encrypted in queued job payloads. Mail delivery is retried; exactly-once delivery is not promised.
+
+Workspace operations require verified email. Existing password-reset flows remain intact; password changes now also invalidate previously authenticated browser sessions, in addition to rotating remember tokens. New invited users verify their email when accepting the one-use email invitation. Existing users must prove ownership of their account before joining another organization.
+
+For platform provisioning, a trusted operator can run `php artisan platform:grant EMAIL` for an existing verified identity. That identity may POST `/platform/organizations` with name, slug, timezone, currency and owner_email; the owner joins by invitation. No platform privilege is granted by ordinary demo seeding.
+
+### 29 October migration record
+
+The workspace migration was already applied as batch 3 when this session resumed. A verified SQL backup was taken before the invitation migration: `storage/app/backups/before-foundation-20261029-030814.sql`, SHA-256 `d8b19a2703e495b906f1818e0a3d0c0344759d22160b01b0d8c8402836030850`. MariaDB initially rejected a non-null notification timestamp default; the pending migration was made retryable and given explicit defaults, then completed without deleting rows. The existing invitation table was preserved.
+
+Before updating protected templates with missing personal self-service grants, another backup was taken: `storage/app/backups/before-foundation-20261029-032319.sql`, SHA-256 `441bd3fb942deb30988be3be87155ba32325e14a281baf848830f740a1ac46cc`. That data-only migration preserves broader grants and custom roles. Its rollback does not guess which grants were historical; restore the backup if reverting template data. Workspace/invitation schema rollback refuses when its tables contain business records. No full restore drill is claimed.
 
 ### Password reset
 
@@ -63,15 +75,15 @@ Email goes wherever `MAIL_MAILER` points. Locally that is `log`, so the reset li
 
 Tests: `tests/Feature/PasswordResetTest.php`, 11 cases covering delivery, the no-enumeration guarantee, token reuse, cross-address token use, expiry handling, length and confirmation rules, address normalisation, and the guest-only constraint.
 
-Still pending for P1.03: invitation acceptance with expiry and replay protection, email-verification delivery and enforcement, and membership suspension checks.
+Invitation expiry/replay protection, email verification, session invalidation and membership suspension checks are now implemented and tested. Final integration review and production security/recovery checks remain pending.
 
 ### Schema and infrastructure
 
 - User records store `first_name`, optional `middle_name`, `last_name`, optional `phone`, email and a hashed password. UUIDs are generated server-side and unique.
 - `name` is a computed display attribute, not a writable database column. Controllers should validate and write the individual name fields.
 - The legacy global `employee_number` column remains nullable to preserve existing values. Do not assign employer metadata to new global identities. Moving employee numbers into organization memberships belongs to Phase 1.
-- The old `permission` table is renamed to `permissions` without deleting records. Configurable scoped roles and organization authorization are not implemented yet.
-- Audit rows have a nullable indexed `created_at`; historical dates are left unknown rather than fabricated. The audit-writing service is still pending.
+- The old `permission` table is renamed to `permissions` without deleting records. Organization roles, role grants, delegation checks and staff query scopes now enforce workspace authorization.
+- Audit rows have a nullable indexed `created_at`; historical dates are left unknown rather than fabricated. `AuditRecorder` appends workspace mutations with safe metadata; audit routes expose no update/delete action.
 - Database queues have `jobs`, `job_batches`, and the existing `failed_jobs` table. Jobs dispatched on the database connection wait until their transaction commits; rollback discards pending dispatches.
 - The private disk lives at `storage/app/private`, throws on write failure, and is not linked beneath `public/storage`. Authorized document uploads/downloads and malware scanning will be implemented with the documents module.
 

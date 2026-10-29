@@ -85,10 +85,19 @@
                             @foreach ($roles as $role)
                                 @php($count = count($heldFor($role)))
 
-                                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center px-0 @if ($editing && $editing->id === $role->id) fw-semibold @endif"
+                                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-2 px-0 @if ($editing && $editing->id === $role->id) fw-semibold @endif"
                                    href="{{ route('roles.index', ['role' => $role->id]) }}"
                                    @if ($editing && $editing->id === $role->id) aria-current="true" @endif>
-                                    <span>{{ $role->name }}</span>
+                                    <span>
+                                        {{ $role->name }}
+                                        @if ($role->is_system_role)
+                                            {{-- Said here, not only on the editor, so the
+                                                 list answers "which of these can I change?"
+                                                 without clicking through every one. --}}
+                                            <i class="bi bi-lock-fill text-secondary small ms-1" aria-hidden="true"></i>
+                                            <span class="visually-hidden">{{ __('(protected)') }}</span>
+                                        @endif
+                                    </span>
                                     <span class="text-secondary small font-monospace">{{ $count }}</span>
                                 </a>
                             @endforeach
@@ -132,8 +141,8 @@
 
                 <x-empty-state
                     icon="shield-check"
-                    :title="__('Choose a role to edit')"
-                    :description="__('Select a role on the left to see and change exactly what it permits.')" />
+                    :title="__('Choose a role to inspect')"
+                    :description="__('Select a role on the left to see exactly what it permits. Roles marked with a lock are supplied with the system and can be read but not changed; create your own role to choose a different set.')" />
             @else
                 @php($held = $heldFor($editing))
 
@@ -145,6 +154,19 @@
                               novalidate>
                             @csrf
                             @method('PUT')
+
+                            {{-- RoleService::save() aborts 403 on a system role, so
+                                 the whole matrix is disabled rather than offered and
+                                 then refused. The reason is stated before the form,
+                                 because a reader meets the explanation before the
+                                 controls it applies to. --}}
+                            @if ($editing->is_system_role)
+                                <x-alert type="info" :title="__('Supplied with the system')">
+                                    {{ __('This role is protected and cannot be changed. You can read every permission it grants below. To grant a different set, create your own role.') }}
+                                </x-alert>
+                            @endif
+
+                            <fieldset @disabled($editing->is_system_role)>
 
                             <div class="row g-2 align-items-end mb-4">
                                 <div class="col-12 col-sm-7">
@@ -164,7 +186,7 @@
                             @foreach ($grouped as $module => $moduleAbilities)
                                 <h3 class="label-mono text-secondary mt-4 mb-2">{{ $module }}</h3>
 
-                                <div>
+                                <div class="table-responsive">
                                     <table class="table table-data align-middle mb-0">
                                         <caption class="visually-hidden">
                                             {{ __(':module permissions for :role', ['module' => $module, 'role' => $editing->name]) }}
@@ -207,9 +229,12 @@
                                 </div>
                             @endforeach
 
-                            <button type="submit" class="btn btn-primary mt-4">
-                                {{ __('Save :role', ['role' => $editing->name]) }}
-                            </button>
+                            @if (! $editing->is_system_role)
+                                <button type="submit" class="btn btn-primary mt-4">
+                                    {{ __('Save :role', ['role' => $editing->name]) }}
+                                </button>
+                            @endif
+                            </fieldset>
                         </form>
                     </div>
                 </div>

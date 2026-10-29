@@ -42,6 +42,7 @@
         ],
         __('People') => [
             ['label' => __('Staff'), 'route' => 'staff.index', 'icon' => 'people', 'can' => 'staff.view'],
+            ['label' => __('Invitations'), 'route' => 'invitations.index', 'icon' => 'envelope', 'can' => 'staff.invite'],
             ['label' => __('Departments & Teams'), 'route' => 'departments.index', 'icon' => 'diagram-3', 'can' => 'departments.manage'],
             ['label' => __('Roles'), 'route' => 'roles.index', 'icon' => 'shield-check', 'can' => 'roles.manage'],
         ],

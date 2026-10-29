@@ -71,28 +71,36 @@ class StaffController extends Controller
         // role belonging to another tenant. The server revalidates every one of
         // them on write regardless of what this form submits.
         $organizationId = $this->actor($request)->organization_id;
+        $canManage = $this->access->allows($this->actor($request), 'staff.manage', $target);
+        $canManageRoles = $this->access->allows($this->actor($request), 'roles.manage', $target);
 
         return view('workspace.staff.show', [
             'member' => $this->fields($target),
             'membership' => $target,
-            'departments' => Department::where('organization_id', $organizationId)->orderBy('name')->pluck('name', 'id'),
-            'teams' => Team::where('organization_id', $organizationId)->orderBy('name')->pluck('name', 'id'),
-            'managers' => OrganizationMembership::where('organization_id', $organizationId)
+            'departments' => $canManage ? Department::where('organization_id', $organizationId)->orderBy('name')->pluck('name', 'id') : collect(),
+            'teams' => $canManage ? Team::where('organization_id', $organizationId)->orderBy('name')->pluck('name', 'id') : collect(),
+            'managers' => $canManage ? OrganizationMembership::where('organization_id', $organizationId)
                 ->where('status', 'active')->whereKeyNot($target->id)->with('user')->get()
-                ->mapWithKeys(fn ($row) => [$row->id => $row->user->name]),
-            'roles' => Role::where('organization_id', $organizationId)->orderBy('name')->pluck('name', 'id'),
+                ->mapWithKeys(fn ($row) => [$row->id => $row->user->name]) : collect(),
+            'roles' => $canManageRoles ? Role::where('organization_id', $organizationId)->orderBy('name')->pluck('name', 'id') : collect(),
             'assignedRoleIds' => $target->roles()->pluck('roles.id')->all(),
         ]);
     }
 
     public function update(Request $request, int $membership)
     {
-        return response()->json(['data' => $this->fields($this->staff->update($this->actor($request), $this->target($request, $membership), $request->all()))]);
+        $updated = $this->staff->update($this->actor($request), $this->target($request, $membership), $request->all());
+
+        return $request->expectsJson() ? response()->json(['data' => $this->fields($updated)])
+            : redirect()->route('staff.show', $membership)->with('success', 'Staff profile updated.');
     }
 
     public function status(Request $request, int $membership)
     {
-        return response()->json(['data' => $this->fields($this->staff->transition($this->actor($request), $this->target($request, $membership), $request->all()))]);
+        $updated = $this->staff->transition($this->actor($request), $this->target($request, $membership), $request->all());
+
+        return $request->expectsJson() ? response()->json(['data' => $this->fields($updated)])
+            : redirect()->route('staff.show', $membership)->with('success', 'Staff status updated.');
     }
 
     public function roles(Request $request, int $membership, RoleService $roles)
@@ -100,6 +108,7 @@ class StaffController extends Controller
         $data = $request->validate(['role_ids' => ['present', 'array', 'max:50'], 'role_ids.*' => ['integer', 'distinct']]);
         $roles->assign($this->actor($request), $this->target($request, $membership), $data['role_ids']);
 
-        return response()->json(['status' => 'updated']);
+        return $request->expectsJson() ? response()->json(['status' => 'updated'])
+            : redirect()->route('staff.show', $membership)->with('success', 'Staff roles updated.');
     }
 }

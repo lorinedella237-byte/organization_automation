@@ -8,8 +8,8 @@ Author: Codex, 28 October 2026. Frontend review: pending Claude. Tasks: P0.04, P
 - Named `landing` route renders the public landing page for guests and redirects signed-in users to `/home`. Existing `/dev/*` preview routes remain restricted to the local environment and are fixtures, not authenticated application pages.
 - `User::name` returns the combined first/middle/last name for display and serialization. Forms submit `first_name`, `last_name`, optional `middle_name` and optional `phone`; do not submit `name` as a database field.
 - Email and password remain identity fields. Passwords are hashed by the model and excluded from serialized output. UUIDs are generated internally; forms must not select them.
-- Legacy `employee_number` is not an identity form field. Organization-scoped employee numbers will come from memberships in Phase 1.
-- No model permissions or view flags grant access by themselves. Organization context and server policies are still pending.
+- Legacy `employee_number` is not an identity form field. Organization-scoped employee numbers now live on memberships.
+- Organization context, scoped staff permissions and role delegation are implemented in `workspace-access.md` revision 2. View flags never substitute for server authorization.
 
 ## Implemented session authentication
 
@@ -23,6 +23,6 @@ Author: Codex, 28 October 2026. Frontend review: pending Claude. Tasks: P0.04, P
 
 Minimal frontend integration by Codex: bind the existing login form directly to `login`, give the remember checkbox value `1`, and add a small authenticated account home using the existing shell. Claude retains visual ownership. No preview flags or permission bypasses are enabled on `/home`.
 
-## Remaining authentication handoff
+## Authentication extension, 29 October 2026
 
-`password.request`, `password.email`, `password.store` and `invitations.accept` are not implemented. The invitation template takes `$token` plus an `$invitation` object exposing `organization_name`, `role_name`, `email` and `expires_at`. Verification, invite expiry/replay behavior and suspension checks remain part of P1.03. Keep unavailable module and reset controls gated until their routes/controllers exist.
+Claude implemented `password.request`, `password.email`, `password.reset` and `password.store`; those flows and tests are preserved. Codex implemented invitations, signed email verification, active workspace checks and password-hash session invalidation. See `workspace-access.md` revision 2 for exact contracts. `DemoWorkspaceSeeder` extends the identity seeder with a demo organization and owner membership. Independent review, dedicated expired/reused invitation UI states, production 2FA and later business modules remain pending.

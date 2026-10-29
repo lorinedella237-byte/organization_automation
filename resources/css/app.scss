@@ -287,6 +287,19 @@ body {
     }
 }
 
+// Bootstrap's .visually-hidden is position: absolute. Without a positioned
+// ancestor it resolves against the initial containing block, so screen-reader
+// text in a far-right table header escapes this scroll container and widens the
+// whole page: a staff table 558px wide pushed the document to 511px at a 366px
+// viewport, giving every page a horizontal scrollbar on a phone.
+//
+// Making the scroll container the containing block clips that text with the
+// table it belongs to. Applied here rather than on one page, because every
+// table carries a visually-hidden caption and most carry a hidden Actions head.
+.table-responsive {
+    position: relative;
+}
+
 // Tables lean dense; organization data is read in volume.
 .table-data {
     font-size: 0.875rem;

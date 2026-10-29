@@ -66,6 +66,7 @@ class WorkspaceController extends Controller
             return $organization;
         });
 
-        return response()->json(['data' => $organization]);
+        return $request->expectsJson() ? response()->json(['data' => $organization])
+            : redirect()->route('settings.organization')->with('success', 'Workspace settings updated.');
     }
 }

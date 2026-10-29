@@ -20,6 +20,7 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
         $request->session()->regenerate();
+        $request->session()->put('password_hash_web', $request->user()->getAuthPassword());
 
         // Until workspace routing exists, all users land on their account home.
         $request->session()->forget('url.intended');

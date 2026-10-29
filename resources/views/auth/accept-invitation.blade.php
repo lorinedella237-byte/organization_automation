@@ -15,6 +15,7 @@
 @section('subtitle', __('Set up your account'))
 
 @section('content')
+    @php($existingAccount = $existingAccount ?? false)
     @if (isset($invitation))
         <div class="bg-body-tertiary border rounded p-3 mb-4 small">
             <div class="d-flex justify-content-between gap-2">
@@ -44,6 +45,7 @@
 
         <input type="hidden" name="token" value="{{ $token ?? request('token') }}">
 
+        @if (! $existingAccount)
         <div class="row g-2">
             <div class="col-12 col-sm-6">
                 <x-input name="first_name" :label="__('First name')" autocomplete="given-name" autofocus required />
@@ -56,23 +58,30 @@
         <x-input name="middle_name" :label="__('Middle name')" autocomplete="additional-name" />
 
         <x-input name="phone" type="tel" :label="__('Phone')" autocomplete="tel" required />
+        @else
+            <p>{{ __('Accept this invitation with your existing account. Your name and password will stay unchanged.') }}</p>
+        @endif
 
+        @if (! $existingAccount || ! auth()->check())
         <x-input
             name="password"
             type="password"
-            :label="__('Create a password')"
-            :help="__('Use at least 12 characters. A longer passphrase is stronger than a short, complex one.')"
-            autocomplete="new-password"
+            :label="$existingAccount ? __('Current password') : __('Create a password')"
+            :help="$existingAccount ? null : __('Use at least 12 characters. A longer passphrase is stronger than a short, complex one.')"
+            :autocomplete="$existingAccount ? 'current-password' : 'new-password'"
             required />
+        @endif
 
+        @if (! $existingAccount)
         <x-input
             name="password_confirmation"
             type="password"
             :label="__('Confirm password')"
             autocomplete="new-password"
             required />
+        @endif
 
-        <button type="submit" class="btn btn-primary w-100">{{ __('Create account') }}</button>
+        <button type="submit" class="btn btn-primary w-100">{{ $existingAccount ? __('Accept invitation') : __('Create account') }}</button>
     </form>
 @endsection
 

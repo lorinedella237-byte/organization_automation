@@ -79,10 +79,26 @@ class RoleService
         });
     }
 
-    private function authorizeGrant(OrganizationMembership $actor, string $ability, string $scope): void
+    public function authorizeGrant(OrganizationMembership $actor, string $ability, string $scope): void
     {
         $held = $this->access->scopes($actor, $ability);
         abort_unless(in_array('organization', $held, true) || in_array($scope, $held, true), 403, 'Cannot delegate a permission you do not hold.');
+    }
+
+    public function canDelegate(OrganizationMembership $actor, Role $role): bool
+    {
+        if ($role->organization_id !== $actor->organization_id || $role->status !== 'Active') {
+            return false;
+        }
+        foreach (DB::table('role_permissions as rp')->join('permissions as p', 'p.id', '=', 'rp.permission_id')
+            ->where('role_id', $role->id)->select('p.code', 'rp.scope')->get() as $grant) {
+            $held = $this->access->scopes($actor, $grant->code);
+            if (! in_array('organization', $held, true) && ! in_array($grant->scope, $held, true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function assign(OrganizationMembership $actor, OrganizationMembership $subject, array $roleIds): void

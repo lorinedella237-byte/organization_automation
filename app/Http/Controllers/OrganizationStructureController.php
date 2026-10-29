@@ -39,6 +39,7 @@ class OrganizationStructureController extends Controller
             return $entity;
         });
 
-        return response()->json(['data' => $entity], 201);
+        return $request->expectsJson() ? response()->json(['data' => $entity], 201)
+            : redirect()->route($table.'.index')->with('success', 'Created successfully.');
     }
 }

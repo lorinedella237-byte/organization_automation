@@ -3,7 +3,7 @@
 $staffScopes = ['own', 'direct_reports', 'department', 'organization'];
 $workScopes = [...$staffScopes, 'assigned_project'];
 
-return [
+$definitions = [
     'abilities' => [
         'organization.manage' => ['organization'],
         'staff.view' => $staffScopes,
@@ -82,3 +82,14 @@ return [
         ]],
     ],
 ];
+
+// Every employee role includes personal self-service; elevated grants replace only their matching abilities.
+$personal = $definitions['templates']['staff']['grants'];
+foreach ($definitions['templates'] as &$template) {
+    if (! ($template['all'] ?? false)) {
+        $template['grants'] = array_replace($personal, $template['grants']);
+    }
+}
+unset($template);
+
+return $definitions;

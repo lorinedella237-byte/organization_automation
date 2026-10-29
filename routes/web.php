@@ -31,13 +31,25 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [NewPasswordController::class, 'store'])->middleware('throttle:6,1')->name('password.store');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'auth.session'])->group(function () {
+    Route::post('/platform/organizations', [\App\Http\Controllers\PlatformOrganizationController::class, 'store'])->middleware(['verified', 'throttle:6,1'])->name('platform.organizations.store');
+    Route::get('/verify-email', [\App\Http\Controllers\Auth\EmailVerificationController::class, 'notice'])->name('verification.notice');
+    Route::post('/email/verification-notification', [\App\Http\Controllers\Auth\EmailVerificationController::class, 'send'])->middleware('throttle:6,1')->name('verification.send');
+    Route::get('/verify-email/{id}/{hash}', [\App\Http\Controllers\Auth\EmailVerificationController::class, 'verify'])->middleware(['signed', 'throttle:6,1'])->name('verification.verify');
     Route::view('/home', 'dashboard')->middleware('workspace:0')->name('dashboard');
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::post('/workspace/switch', [\App\Http\Controllers\WorkspaceController::class, 'switch'])->name('workspace.switch');
 });
 
-Route::prefix('workspace')->middleware(['auth', 'workspace'])->group(function () {
+Route::get('/invitations/{token}', [\App\Http\Controllers\InvitationController::class, 'show'])->where('token', '[A-Za-z0-9]{64}')->middleware('throttle:30,1')->name('invitations.show');
+Route::post('/invitations/accept', [\App\Http\Controllers\InvitationController::class, 'accept'])->middleware(['auth.session', 'throttle:6,1'])->name('invitations.accept');
+
+Route::prefix('workspace')->middleware(['auth', 'auth.session', 'verified', 'workspace'])->group(function () {
+    Route::get('invitations', [\App\Http\Controllers\InvitationController::class, 'index'])->name('invitations.index');
+    Route::post('invitations', [\App\Http\Controllers\InvitationController::class, 'store'])->name('invitations.store');
+    Route::delete('invitations/{invitation}', [\App\Http\Controllers\InvitationController::class, 'revoke'])->whereNumber('invitation')->name('invitations.revoke');
+    Route::get('notifications', [\App\Http\Controllers\WorkspaceNotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/{notification}/read', [\App\Http\Controllers\WorkspaceNotificationController::class, 'read'])->whereUuid('notification')->name('notifications.read');
     Route::get('settings', [\App\Http\Controllers\WorkspaceController::class, 'show'])->name('settings.organization');
     Route::patch('settings', [\App\Http\Controllers\WorkspaceController::class, 'update'])->name('settings.organization.update');
     Route::get('staff', [\App\Http\Controllers\StaffController::class, 'index'])->name('staff.index');

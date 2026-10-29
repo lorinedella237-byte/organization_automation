@@ -11,7 +11,7 @@ class ResolveWorkspace
 {
     public function handle(Request $request, Closure $next, bool $required = true): Response
     {
-        $memberships = $request->user()->memberships()->with('organization')->where('status', 'active')
+        $memberships = $request->user()->memberships()->with(['organization', 'roles'])->where('status', 'active')
             ->whereHas('organization', fn ($query) => $query->where('status', 'active'))->orderBy('id')->get();
         $selected = $request->session()->get('current_organization_id');
         $membership = $selected ? $memberships->firstWhere('organization_id', (int) $selected) : $memberships->first();
@@ -30,6 +30,8 @@ class ResolveWorkspace
             'currentMembership' => $membership,
             'currentOrganization' => $membership?->organization,
             'availableOrganizations' => $memberships->pluck('organization'),
+            'unreadNotificationCount' => $membership ? \Illuminate\Support\Facades\DB::table('workspace_notifications')
+                ->where('organization_id', $membership->organization_id)->where('organization_membership_id', $membership->id)->whereNull('read_at')->count() : 0,
         ]);
 
         return $next($request);

@@ -29,6 +29,9 @@ class RoleController extends Controller
 
     public function save(Request $request, RoleService $roles, ?int $role = null)
     {
+        if (! $request->expectsJson() && $request->exists('grants') && $request->input('grants') === null) {
+            $request->merge(['grants' => []]);
+        }
         $actor = $request->attributes->get('currentMembership');
         $target = $role ? Role::where('organization_id', $actor->organization_id)->findOrFail($role) : null;
         $data = $request->validate([
@@ -36,6 +39,9 @@ class RoleController extends Controller
             'grants.*' => ['array:ability,scope'], 'grants.*.ability' => ['required', 'string'], 'grants.*.scope' => ['required', 'string'],
         ]);
 
-        return response()->json(['data' => $roles->save($actor, $data, $target)], $target ? 200 : 201);
+        $saved = $roles->save($actor, $data, $target);
+
+        return $request->expectsJson() ? response()->json(['data' => $saved], $target ? 200 : 201)
+            : redirect()->route('roles.index', ['role' => $saved->id])->with('success', 'Role saved.');
     }
 }
